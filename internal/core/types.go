@@ -39,10 +39,11 @@ func ResolveEndpoints(brand LarkBrand) Endpoints {
 			MCP:      "https://mcp.larksuite.com",
 		}
 	default:
+		// TODO: boe env need remove
 		return Endpoints{
-			Open:     "https://open.feishu-pre.cn",
-			Accounts: "https://accounts.feishu.cn",
-			MCP:      "https://mcp.feishu.cn",
+			Open:     "https://open.feishu-boe.cn",
+			Accounts: "https://accounts.feishu-boe.cn",
+			MCP:      "https://mcp.feishu-boe.cn",
 		}
 	}
 }

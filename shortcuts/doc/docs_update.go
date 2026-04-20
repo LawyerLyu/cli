@@ -40,7 +40,7 @@ func v1UpdateFlags() []common.Flag {
 	}
 }
 
-var docsUpdateFlagVersions = buildFlagVersionMap(v1UpdateFlags(), v2UpdateFlags())
+var docsUpdateFlagVersions = buildFlagVersionMap(v1UpdateFlags(), append(v2UpdateFlags(), tableUpdateFlags()...))
 
 // useV2Update returns true when the v2 (OpenAPI) update path should be used.
 // Explicit --api-version v2 takes priority; otherwise auto-detect by v2-only flags.
@@ -69,20 +69,30 @@ var DocsUpdate = common.Shortcut{
 		},
 		v1UpdateFlags(),
 		v2UpdateFlags(),
+		tableUpdateFlags(),
 	),
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		if isTableCommand(runtime.Str("command")) {
+			return validateTableUpdate(ctx, runtime)
+		}
 		if useV2Update(runtime) {
 			return validateUpdateV2(ctx, runtime)
 		}
 		return validateUpdateV1(ctx, runtime)
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
+		if isTableCommand(runtime.Str("command")) {
+			return dryRunTableUpdate(ctx, runtime)
+		}
 		if useV2Update(runtime) {
 			return dryRunUpdateV2(ctx, runtime)
 		}
 		return dryRunUpdateV1(ctx, runtime)
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		if isTableCommand(runtime.Str("command")) {
+			return executeTableUpdate(ctx, runtime)
+		}
 		if useV2Update(runtime) {
 			return executeUpdateV2(ctx, runtime)
 		}

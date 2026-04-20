@@ -20,6 +20,13 @@ func TestValidCommandsV2(t *testing.T) {
 		"block_move_after":        true,
 		"overwrite":               true,
 		"append":                  true,
+		"table_insert_rows":       true,
+		"table_insert_cols":       true,
+		"table_delete_rows":       true,
+		"table_delete_cols":       true,
+		"table_merge_cells":       true,
+		"table_unmerge_cells":     true,
+		"table_update_property":   true,
 	}
 	if len(validCommandsV2) != len(expected) {
 		t.Fatalf("expected %d commands, got %d", len(expected), len(validCommandsV2))

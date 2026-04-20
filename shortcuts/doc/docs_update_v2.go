@@ -6,26 +6,36 @@ package doc
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
 var validCommandsV2 = map[string]bool{
-	"str_replace":              true,
-	"str_delete":               true,
-	"block_delete":             true,
-	"block_insert_after":       true,
-	"block_copy_insert_after":  true,
-	"block_replace":            true,
-	"block_move_after":         true,
-	"overwrite":                true,
-	"append":                   true,
+	"str_replace":             true,
+	"str_delete":              true,
+	"block_delete":            true,
+	"block_insert_after":      true,
+	"block_copy_insert_after": true,
+	"block_replace":           true,
+	"block_move_after":        true,
+	"overwrite":               true,
+	"append":                  true,
+	// Table operations
+	"table_insert_rows":     true,
+	"table_insert_cols":     true,
+	"table_delete_rows":     true,
+	"table_delete_cols":     true,
+	"table_merge_cells":     true,
+	"table_unmerge_cells":   true,
+	"table_update_property": true,
 }
 
 // v2UpdateFlags returns the flag definitions for the v2 (OpenAPI) update path.
 func v2UpdateFlags() []common.Flag {
 	return []common.Flag{
-		{Name: "command", Desc: "operation: str_replace | str_delete | block_delete | block_insert_after | block_copy_insert_after | block_replace | block_move_after | overwrite | append", Hidden: true, Enum: validCommandsV2Keys()},
+		{Name: "command", Desc: "operation: " + validCommandsV2Description(), Hidden: true, Enum: validCommandsV2Keys()},
 		{Name: "doc-format", Desc: "content format (prefer XML)", Hidden: true, Default: "xml", Enum: []string{"xml", "markdown"}},
 		{Name: "content", Desc: "new content (XML or Markdown)", Hidden: true, Input: []string{common.File, common.Stdin}},
 		{Name: "pattern", Desc: "regex pattern for str_replace / str_delete", Hidden: true},
@@ -35,8 +45,21 @@ func v2UpdateFlags() []common.Flag {
 	}
 }
 
+// validCommandsV2Keys returns the sorted list of v2 --command values, derived from
+// validCommandsV2 so the enum never drifts when new commands are added.
 func validCommandsV2Keys() []string {
-	return []string{"str_replace", "str_delete", "block_delete", "block_insert_after", "block_copy_insert_after", "block_replace", "block_move_after", "overwrite", "append"}
+	keys := make([]string, 0, len(validCommandsV2))
+	for cmd := range validCommandsV2 {
+		keys = append(keys, cmd)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// validCommandsV2Description renders the key list as a pipe-separated string for
+// help and error text, keeping both in lock-step with validCommandsV2.
+func validCommandsV2Description() string {
+	return strings.Join(validCommandsV2Keys(), " | ")
 }
 
 func validateUpdateV2(_ context.Context, runtime *common.RuntimeContext) error {
@@ -45,7 +68,7 @@ func validateUpdateV2(_ context.Context, runtime *common.RuntimeContext) error {
 		return common.FlagErrorf("--command is required")
 	}
 	if !validCommandsV2[cmd] {
-		return common.FlagErrorf("invalid --command %q, valid: str_replace | str_delete | block_delete | block_insert_after | block_copy_insert_after | block_replace | block_move_after | overwrite | append", cmd)
+		return common.FlagErrorf("invalid --command %q, valid: %s", cmd, validCommandsV2Description())
 	}
 	content := runtime.Str("content")
 	pattern := runtime.Str("pattern")
