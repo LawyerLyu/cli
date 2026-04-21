@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -124,6 +125,36 @@ func parseA1Range(s string) (rowStart, rowEnd, colStart, colEnd int, err error) 
 	return r1, r2 + 1, c1, c2 + 1, nil
 }
 
+// ── Validation helpers ──
+
+// backgroundColorPattern accepts the formats docx_engine recognizes: named colors
+// (e.g. `red`, `light-blue`), `rgb(r,g,b)`, `rgba(r,g,b,a)`, and `#RRGGBB` / `#RGB`.
+// This is a shape check only — specific color names / component ranges are validated
+// downstream in docx_engine. Keep the pattern permissive enough that new named
+// colors added server-side don't require a CLI re-release.
+var backgroundColorPattern = regexp.MustCompile(`^(?:#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|[a-zA-Z][a-zA-Z0-9_-]{0,31})$`)
+
+func isValidBackgroundColor(s string) bool {
+	return backgroundColorPattern.MatchString(strings.TrimSpace(s))
+}
+
+// validateStyleFlags is shared by the four cell-targeting modes of
+// table_update_property. Enforces: at least one style flag is set, and each set
+// flag has a plausible value. Returns a FlagError with an example when invalid.
+func validateStyleFlags(runtime *common.RuntimeContext, mode string) error {
+	bg := runtime.Str("background-color")
+	valign := runtime.Str("vertical-align")
+	if bg == "" && valign == "" {
+		return common.FlagErrorf("%s update requires --background-color or --vertical-align (example: --background-color light-blue)", mode)
+	}
+	if bg != "" && !isValidBackgroundColor(bg) {
+		return common.FlagErrorf("--background-color %q is not a recognized format. Use a named color (light-blue, red, ...), rgb(r,g,b), rgba(r,g,b,a), or #RRGGBB.", bg)
+	}
+	// --vertical-align is constrained to the enum {top, middle, bottom} at the flag
+	// definition layer (see tableUpdateFlags), so no extra check here.
+	return nil
+}
+
 // ── Validation ──
 
 func validateTableUpdate(_ context.Context, runtime *common.RuntimeContext) error {
@@ -190,18 +221,87 @@ func validateTableUpdate(_ context.Context, runtime *common.RuntimeContext) erro
 			return common.FlagErrorf("--cell: %v", err)
 		}
 	case "table_update_property":
-		if runtime.Str("cell") != "" {
-			// Cell-level mode
-			if _, _, err := parseA1Cell(runtime.Str("cell")); err != nil {
+		// Four mutually exclusive cell-styling modes (any may coexist with orthogonal
+		// table-level props: --col/--col-width/--header-*):
+		//   cellMode   : --cell B3
+		//   rangeMode  : --range A1:C3
+		//   rowMode    : --row-start + --row-end (1-based, half-open)
+		//   colMode    : --col-start + --col-end (letters, inclusive end)
+		cellStr := runtime.Str("cell")
+		rangeStr := runtime.Str("range")
+		rowStart := runtime.Int("row-start")
+		rowEnd := runtime.Int("row-end")
+		colStart := runtime.Str("col-start")
+		colEnd := runtime.Str("col-end")
+
+		cellMode := cellStr != ""
+		rangeMode := rangeStr != ""
+		rowMode := rowStart != 0 || rowEnd != 0
+		colMode := colStart != "" || colEnd != ""
+
+		modes := 0
+		for _, m := range []bool{cellMode, rangeMode, rowMode, colMode} {
+			if m {
+				modes++
+			}
+		}
+		if modes > 1 {
+			return common.FlagErrorf("--cell, --range, --row-start/--row-end, --col-start/--col-end are mutually exclusive for table_update_property. Pick one targeting mode — example: --cell B3, or --range A1:C3, or --row-start 1 --row-end 3, or --col-start A --col-end C.")
+		}
+
+		switch {
+		case cellMode:
+			if _, _, err := parseA1Cell(cellStr); err != nil {
 				return common.FlagErrorf("--cell: %v", err)
 			}
-			if runtime.Str("background-color") == "" && runtime.Str("vertical-align") == "" {
-				return common.FlagErrorf("cell-level update requires --background-color or --vertical-align")
+			if err := validateStyleFlags(runtime, "cell-level"); err != nil {
+				return err
 			}
-		} else {
-			// Table-level mode
-			if runtime.Int("col-width") != 0 && runtime.Str("col") == "" {
-				return common.FlagErrorf("--col is required when --col-width is set")
+		case rangeMode:
+			if _, _, _, _, err := parseA1Range(rangeStr); err != nil {
+				return common.FlagErrorf("--range: %v", err)
+			}
+			if err := validateStyleFlags(runtime, "range"); err != nil {
+				return err
+			}
+		case rowMode:
+			if rowStart <= 0 || rowEnd <= 0 {
+				return common.FlagErrorf("--row-start and --row-end are both required (1-based half-open; e.g. --row-start 1 --row-end 3 selects rows 1 and 2)")
+			}
+			if rowEnd <= rowStart {
+				return common.FlagErrorf("--row-end must be > --row-start (ranges are half-open; got --row-start %d --row-end %d)", rowStart, rowEnd)
+			}
+			if err := validateStyleFlags(runtime, "row"); err != nil {
+				return err
+			}
+		case colMode:
+			if colStart == "" || colEnd == "" {
+				return common.FlagErrorf("--col-start and --col-end are both required for column range (e.g. --col-start A --col-end C selects columns A, B, C)")
+			}
+			s, err := parseColLetter(colStart)
+			if err != nil {
+				return common.FlagErrorf("--col-start: %v", err)
+			}
+			e, err := parseColLetter(colEnd)
+			if err != nil {
+				return common.FlagErrorf("--col-end: %v", err)
+			}
+			if e < s {
+				return common.FlagErrorf("--col-end must be >= --col-start (got --col-start %s --col-end %s)", colStart, colEnd)
+			}
+			if err := validateStyleFlags(runtime, "column"); err != nil {
+				return err
+			}
+		default:
+			// Table-level mode: --col-width / --header-row / --header-column
+			colWidth := runtime.Int("col-width")
+			hasHeaderRow := runtime.Cmd.Flags().Changed("header-row")
+			hasHeaderCol := runtime.Cmd.Flags().Changed("header-column")
+			if colWidth == 0 && !hasHeaderRow && !hasHeaderCol {
+				return common.FlagErrorf("table_update_property requires at least one property when no cell targeting is set. Use --col + --col-width, --header-row, --header-column, or one of the cell targeting modes (--cell, --range, --row-start/--row-end, --col-start/--col-end) with --background-color or --vertical-align.")
+			}
+			if colWidth != 0 && runtime.Str("col") == "" {
+				return common.FlagErrorf("--col is required when --col-width is set (e.g. --col B --col-width 240)")
 			}
 			if runtime.Str("col") != "" {
 				if _, err := parseColLetter(runtime.Str("col")); err != nil {
@@ -270,29 +370,38 @@ func buildTableSingleBody(runtime *common.RuntimeContext, cmd string) map[string
 	case "table_unmerge_cells":
 		extra["cell"] = runtime.Str("cell")
 	case "table_update_property":
+		// Cell-styling modes (cellMode / rangeMode / rowMode / colMode). Validation
+		// already enforced mutual exclusion, so the first matching branch wins.
 		if v := runtime.Str("cell"); v != "" {
-			// Cell-level
 			extra["cell"] = v
-			if bg := runtime.Str("background-color"); bg != "" {
-				extra["background_color"] = bg
-			}
-			if va := runtime.Str("vertical-align"); va != "" {
-				extra["vertical_align"] = va
-			}
-		} else {
-			// Table-level
-			if v := runtime.Str("col"); v != "" {
-				extra["column_index"] = v
-			}
-			if v := runtime.Int("col-width"); v != 0 {
-				extra["column_width"] = v
-			}
-			if v := runtime.Str("header-row"); v != "" {
-				extra["header_row"] = v == "true"
-			}
-			if v := runtime.Str("header-column"); v != "" {
-				extra["header_column"] = v == "true"
-			}
+		} else if v := runtime.Str("range"); v != "" {
+			extra["range"] = v
+		} else if rs, re := runtime.Int("row-start"), runtime.Int("row-end"); rs != 0 && re != 0 {
+			extra["row_start_index"] = rs
+			extra["row_end_index"] = re
+		} else if cs, ce := runtime.Str("col-start"), runtime.Str("col-end"); cs != "" && ce != "" {
+			extra["column_start_index"] = cs
+			extra["column_end_index"] = ce
+		}
+		// Cell-styling props layer onto whichever targeting mode is active.
+		if bg := runtime.Str("background-color"); bg != "" {
+			extra["background_color"] = bg
+		}
+		if va := runtime.Str("vertical-align"); va != "" {
+			extra["vertical_align"] = va
+		}
+		// Table-level props remain orthogonal.
+		if v := runtime.Str("col"); v != "" {
+			extra["column_index"] = v
+		}
+		if v := runtime.Int("col-width"); v != 0 {
+			extra["column_width"] = v
+		}
+		if runtime.Cmd.Flags().Changed("header-row") {
+			extra["header_row"] = runtime.Bool("header-row")
+		}
+		if runtime.Cmd.Flags().Changed("header-column") {
+			extra["header_column"] = runtime.Bool("header-column")
 		}
 	}
 
