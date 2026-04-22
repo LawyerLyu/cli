@@ -9,10 +9,14 @@ import (
 )
 
 func normalize(v any) any {
+	// Primitives need no conversion.
 	switch v.(type) {
-	case map[string]any, []any, string, json.Number, bool, nil:
+	case string, json.Number, bool, nil:
 		return v
 	}
+	// Maps and slices may contain typed sub-values (e.g. []map[string]any)
+	// that the scanner's type-switch cannot walk. Marshal+unmarshal the whole
+	// tree so every node becomes map[string]any or []any.
 	b, err := json.Marshal(v)
 	if err != nil {
 		return v
