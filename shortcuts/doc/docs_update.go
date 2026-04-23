@@ -78,7 +78,8 @@ var DocsUpdate = common.Shortcut{
 			args["markdown"] = v
 		}
 		if v := runtime.Str("selection-with-ellipsis"); v != "" {
-			args["selection_with_ellipsis"] = v
+			normalized, _ := common.NormalizeSelectionWithEllipsis(v)
+			args["selection_with_ellipsis"] = normalized
 		}
 		if v := runtime.Str("selection-by-title"); v != "" {
 			args["selection_by_title"] = v
@@ -111,7 +112,12 @@ var DocsUpdate = common.Shortcut{
 			args["markdown"] = markdown
 		}
 		if v := runtime.Str("selection-with-ellipsis"); v != "" {
-			args["selection_with_ellipsis"] = v
+			normalized, changed := common.NormalizeSelectionWithEllipsis(v)
+			if changed {
+				fmt.Fprintf(runtime.IO().ErrOut,
+					"note: normalized --selection-with-ellipsis (curly quotes / CR line endings rewritten to canonical ASCII form for matching)\n")
+			}
+			args["selection_with_ellipsis"] = normalized
 		}
 		if v := runtime.Str("selection-by-title"); v != "" {
 			args["selection_by_title"] = v

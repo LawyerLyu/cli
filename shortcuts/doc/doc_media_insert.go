@@ -109,7 +109,7 @@ var DocMediaInsert = common.Shortcut{
 		}
 		mediaType := runtime.Str("type")
 		caption := runtime.Str("caption")
-		selection := strings.TrimSpace(runtime.Str("selection-with-ellipsis"))
+		selection, _ := common.NormalizeSelectionWithEllipsis(strings.TrimSpace(runtime.Str("selection-with-ellipsis")))
 		hasSelection := selection != ""
 		fileViewType := fileViewMap[runtime.Str("file-view")]
 
@@ -251,7 +251,7 @@ var DocMediaInsert = common.Shortcut{
 		}
 		fmt.Fprintf(runtime.IO().ErrOut, "Root block ready: %s (%d children)\n", parentBlockID, insertIndex)
 
-		selection := strings.TrimSpace(runtime.Str("selection-with-ellipsis"))
+		selection, _ := common.NormalizeSelectionWithEllipsis(strings.TrimSpace(runtime.Str("selection-with-ellipsis")))
 		if selection != "" {
 			before := runtime.Bool("before")
 			// Redact the selection when logging — it is copied verbatim from

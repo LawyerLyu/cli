@@ -159,7 +159,7 @@ var DriveAddComment = common.Shortcut{
 		}
 
 		// Doc/docx comment dry-run.
-		selection := runtime.Str("selection-with-ellipsis")
+		selection, _ := common.NormalizeSelectionWithEllipsis(runtime.Str("selection-with-ellipsis"))
 		mode := resolveCommentMode(runtime.Bool("full-comment"), selection, blockID)
 
 		createPath := "/open-apis/drive/v1/files/:file_token/new_comments"
@@ -241,7 +241,12 @@ var DriveAddComment = common.Shortcut{
 			return executeSheetComment(runtime, docRef)
 		}
 
-		selection := runtime.Str("selection-with-ellipsis")
+		rawSelection := runtime.Str("selection-with-ellipsis")
+		selection, normalized := common.NormalizeSelectionWithEllipsis(rawSelection)
+		if normalized {
+			fmt.Fprintf(runtime.IO().ErrOut,
+				"note: normalized --selection-with-ellipsis (curly quotes / CR line endings rewritten to canonical ASCII form for matching)\n")
+		}
 		blockID := strings.TrimSpace(runtime.Str("block-id"))
 		mode := resolveCommentMode(runtime.Bool("full-comment"), selection, blockID)
 
