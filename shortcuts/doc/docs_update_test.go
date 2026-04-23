@@ -3,13 +3,18 @@
 package doc
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -331,5 +336,163 @@ func TestDocsUpdateValidate(t *testing.T) {
 				t.Fatalf("error %q does not contain %q", err.Error(), tt.wantErr)
 			}
 		})
+	}
+}
+
+// showDiffTestConfig is kept minimal — just enough for TestFactory to mount
+// the update shortcut against the httpmock registry.
+func showDiffTestConfig() *core.CliConfig {
+	return &core.CliConfig{AppID: "show-diff-test", AppSecret: "test-secret", Brand: core.BrandFeishu}
+}
+
+func runDocsUpdateShortcut(t *testing.T, f *cmdutil.Factory, stdout *bytes.Buffer, args []string) error {
+	t.Helper()
+	parent := &cobra.Command{Use: "docs"}
+	DocsUpdate.Mount(parent, f)
+	parent.SetArgs(args)
+	parent.SilenceErrors = true
+	parent.SilenceUsage = true
+	if stdout != nil {
+		stdout.Reset()
+	}
+	return parent.Execute()
+}
+
+// registerMCPStub adds an /mcp stub returning the canned tools/call payload
+// once. httpmock matches each stub exactly one time, so a --show-diff run
+// (pre-fetch → update → post-fetch) needs three stubs.
+func registerMCPStub(reg *httpmock.Registry, payload map[string]interface{}) {
+	raw, _ := json.Marshal(payload)
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/mcp",
+		Body: map[string]interface{}{
+			"result": map[string]interface{}{
+				"content": []map[string]interface{}{
+					{"type": "text", "text": string(raw)},
+				},
+			},
+		},
+	})
+}
+
+// TestDocsUpdateShowDiffEmitsUnifiedDiff wires up three MCP stubs to drive
+// the full show-diff path: pre-fetch returns the original markdown, the
+// update-doc call reports success, and post-fetch returns the modified
+// markdown. The test asserts that the unified diff of the changed region
+// lands on stderr while the JSON response stays on stdout.
+func TestDocsUpdateShowDiffEmitsUnifiedDiff(t *testing.T) {
+	f, stdout, stderr, reg := cmdutil.TestFactory(t, showDiffTestConfig())
+	registerMCPStub(reg, map[string]interface{}{"markdown": "line one\noriginal middle\nline three\n"})
+	registerMCPStub(reg, map[string]interface{}{"success": true})
+	registerMCPStub(reg, map[string]interface{}{"markdown": "line one\nreplacement middle\nline three\n"})
+
+	err := runDocsUpdateShortcut(t, f, stdout, []string{
+		"+update",
+		"--doc", "DOC123",
+		"--mode", "replace_range",
+		"--selection-with-ellipsis", "original middle",
+		"--markdown", "replacement middle",
+		"--show-diff",
+		"--as", "bot",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	errOut := stderr.String()
+	if !strings.Contains(errOut, "--- before") || !strings.Contains(errOut, "+++ after") {
+		t.Errorf("expected unified-diff header on stderr, got:\n%s", errOut)
+	}
+	if !strings.Contains(errOut, "-original middle") {
+		t.Errorf("expected deletion line on stderr, got:\n%s", errOut)
+	}
+	if !strings.Contains(errOut, "+replacement middle") {
+		t.Errorf("expected addition line on stderr, got:\n%s", errOut)
+	}
+	// The update response JSON must still land on stdout cleanly.
+	if !strings.Contains(stdout.String(), "success") {
+		t.Errorf("expected update success JSON on stdout, got:\n%s", stdout.String())
+	}
+}
+
+// TestDocsUpdateShowDiffSkipsForAppendMode ensures append (and overwrite)
+// never trigger pre/post fetches — the only /mcp stub registered handles
+// the update-doc call itself; any extra fetch would trip 'no stub' in
+// httpmock and fail the test.
+func TestDocsUpdateShowDiffSkipsForAppendMode(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, showDiffTestConfig())
+	registerMCPStub(reg, map[string]interface{}{"success": true})
+
+	err := runDocsUpdateShortcut(t, f, stdout, []string{
+		"+update",
+		"--doc", "DOC123",
+		"--mode", "append",
+		"--markdown", "appended paragraph",
+		"--show-diff",
+		"--as", "bot",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "success") {
+		t.Errorf("expected update success on stdout, got:\n%s", stdout.String())
+	}
+}
+
+// TestDocsUpdateShowDiffPreFetchFailureDegradesGracefully omits the
+// pre-fetch stub, so fetchMarkdownForDiff returns a "no stub" error. The
+// update must still proceed and the warning must surface on stderr.
+func TestDocsUpdateShowDiffPreFetchFailureDegradesGracefully(t *testing.T) {
+	f, stdout, stderr, reg := cmdutil.TestFactory(t, showDiffTestConfig())
+	// Two stubs: the failing pre-fetch chooses the first matching /mcp stub
+	// anyway, so we need a stub for it (returning has_more=true triggers the
+	// advisory error path) plus the real update call.
+	registerMCPStub(reg, map[string]interface{}{"markdown": "x", "has_more": true})
+	registerMCPStub(reg, map[string]interface{}{"success": true})
+
+	err := runDocsUpdateShortcut(t, f, stdout, []string{
+		"+update",
+		"--doc", "DOC123",
+		"--mode", "replace_range",
+		"--selection-with-ellipsis", "any",
+		"--markdown", "replacement",
+		"--show-diff",
+		"--as", "bot",
+	})
+	if err != nil {
+		t.Fatalf("update should still succeed despite pre-fetch advisory failure, got: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "--show-diff pre-fetch failed") {
+		t.Errorf("expected pre-fetch failure warning on stderr, got:\n%s", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "success") {
+		t.Errorf("expected update success on stdout, got:\n%s", stdout.String())
+	}
+}
+
+// TestDocsUpdateShowDiffIdenticalSnapshotsNote: pre and post fetch return
+// the same markdown, so the diff is empty. The shortcut should emit the
+// "no textual change" note instead of a diff block.
+func TestDocsUpdateShowDiffIdenticalSnapshotsNote(t *testing.T) {
+	f, stdout, stderr, reg := cmdutil.TestFactory(t, showDiffTestConfig())
+	registerMCPStub(reg, map[string]interface{}{"markdown": "unchanged\n"})
+	registerMCPStub(reg, map[string]interface{}{"success": true})
+	registerMCPStub(reg, map[string]interface{}{"markdown": "unchanged\n"})
+
+	err := runDocsUpdateShortcut(t, f, stdout, []string{
+		"+update",
+		"--doc", "DOC123",
+		"--mode", "replace_range",
+		"--selection-with-ellipsis", "unchanged",
+		"--markdown", "unchanged",
+		"--show-diff",
+		"--as", "bot",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "no textual change") {
+		t.Errorf("expected no-change note on stderr, got:\n%s", stderr.String())
 	}
 }
