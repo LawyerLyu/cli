@@ -43,6 +43,7 @@ var DocsUpdate = common.Shortcut{
 		{Name: "selection-with-ellipsis", Desc: "content locator (e.g. 'start...end')"},
 		{Name: "selection-by-title", Desc: "title locator (e.g. '## Section')"},
 		{Name: "new-title", Desc: "also update document title"},
+		{Name: "show-diff", Type: "bool", Desc: "fetch the document before and after the update and print a unified diff of the affected region to stderr (skipped for append / overwrite; adds two fetch-doc calls)"},
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		mode := runtime.Str("mode")
@@ -120,12 +121,56 @@ var DocsUpdate = common.Shortcut{
 			args["new_title"] = v
 		}
 
+		// Optional diff capture: fetch the document before the update so we
+		// can render a unified diff after the update settles. Kept off the
+		// default path because it doubles read-side MCP calls for every
+		// update. append/overwrite don't get a diff — append has no "before"
+		// context worth showing, and overwrite marks every line as changed,
+		// defeating the purpose.
+		showDiff := runtime.Bool("show-diff") &&
+			mode != "append" && mode != "overwrite"
+		var beforeMarkdown string
+		var beforeErr error
+		if showDiff {
+			beforeMarkdown, beforeErr = fetchMarkdownForDiff(runtime, runtime.Str("doc"))
+			if beforeErr != nil {
+				fmt.Fprintf(runtime.IO().ErrOut,
+					"warning: --show-diff pre-fetch failed (%v); update will proceed without a diff\n",
+					beforeErr)
+			}
+		}
+
 		result, err := common.CallMCPTool(runtime, "update-doc", args)
 		if err != nil {
 			return err
 		}
 
 		normalizeDocsUpdateResult(result, runtime.Str("markdown"))
+
+		// Post-fetch and emit the diff. Any failure here is advisory only —
+		// the update already succeeded, so degrade gracefully instead of
+		// making the caller re-run.
+		if showDiff && beforeErr == nil {
+			afterMarkdown, afterErr := fetchMarkdownForDiff(runtime, runtime.Str("doc"))
+			switch {
+			case afterErr != nil:
+				fmt.Fprintf(runtime.IO().ErrOut,
+					"warning: --show-diff post-fetch failed (%v); update succeeded but no diff available\n",
+					afterErr)
+			default:
+				diff := computeMarkdownDiff(
+					fixExportedMarkdown(beforeMarkdown),
+					fixExportedMarkdown(afterMarkdown),
+				)
+				if diff == "" {
+					fmt.Fprintln(runtime.IO().ErrOut,
+						"note: --show-diff found no textual change after the update (server may have normalized the markdown)")
+				} else {
+					fmt.Fprintf(runtime.IO().ErrOut, "--- before\n+++ after\n%s", diff)
+				}
+			}
+		}
+
 		runtime.Out(result, nil)
 		return nil
 	},
