@@ -114,6 +114,7 @@ Drive Folder (云空间文件夹)
 ## 快速决策
 - 用户说“看一下文档里的图片/附件/素材”“预览素材”，优先用 `lark-cli docs +media-preview`。
 - 用户明确说“下载素材”，再用 `lark-cli docs +media-download`。
+- 如果目标是开启了高级权限的多维表格附件，下载时要额外传 `--extra '<json>'`；把**未 URL 编码**的 JSON 字符串直接传给 CLI。
 - 如果目标明确是画板 / whiteboard / 画板缩略图，只能用 `lark-cli docs +media-download --type whiteboard`，不要用 `+media-preview`。
 - 用户说“找一个表格”“按名称搜电子表格”“找报表”“最近打开的表格”，先用 `lark-cli docs +search` 做资源发现。
 - `docs +search` 不是只搜文档 / Wiki；结果里会直接返回 `SHEET` 等云空间对象。

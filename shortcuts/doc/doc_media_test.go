@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -648,6 +649,35 @@ func TestDocMediaPreviewDryRunUsesMediaEndpoint(t *testing.T) {
 	}
 }
 
+func TestDocMediaDownloadDryRunIncludesExtraQueryParam(t *testing.T) {
+	cmd := &cobra.Command{Use: "docs +media-download"}
+	cmd.Flags().String("token", "", "")
+	cmd.Flags().String("output", "", "")
+	cmd.Flags().String("type", "", "")
+	cmd.Flags().String("extra", "", "")
+	if err := cmd.Flags().Set("token", "tok_preview"); err != nil {
+		t.Fatalf("set --token: %v", err)
+	}
+	if err := cmd.Flags().Set("output", "./asset"); err != nil {
+		t.Fatalf("set --output: %v", err)
+	}
+	extra := `{"bitablePerm":{"tableId":"tblO6OeNZxfabcef","attachments":{"fld32zZi5I":{"rec0BuOHq":["boxbcsQNT0JsmrztOnX530abcef"]}}}}`
+	if err := cmd.Flags().Set("extra", extra); err != nil {
+		t.Fatalf("set --extra: %v", err)
+	}
+
+	dry := decodeDocDryRun(t, DocMediaDownload.DryRun(context.Background(), common.TestNewRuntimeContext(cmd, nil)))
+	if len(dry.API) != 1 {
+		t.Fatalf("expected 1 API call, got %d", len(dry.API))
+	}
+	if dry.API[0].URL != "/open-apis/drive/v1/medias/tok_preview/download" {
+		t.Fatalf("URL = %q, want media download endpoint", dry.API[0].URL)
+	}
+	if got, _ := dry.API[0].Params["extra"].(string); got != extra {
+		t.Fatalf("extra = %q, want %q", got, extra)
+	}
+}
+
 func TestDocMediaPreviewRejectsOverwriteWithoutFlag(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-preview-overwrite-app"))
 	reg.Register(&httpmock.Stub{
@@ -807,6 +837,43 @@ func TestDocMediaDownloadAppendsExtensionFromContentTypeMapping(t *testing.T) {
 
 	got := decodeDocCommandOutput(t, stdout)
 	wantPath := mustDocSafeOutputPath(t, "typed.csv")
+	if got.Data.SavedPath != wantPath {
+		t.Fatalf("saved_path = %q, want %q", got.Data.SavedPath, wantPath)
+	}
+	if _, err := os.Stat(wantPath); err != nil {
+		t.Fatalf("expected downloaded file at %q: %v", wantPath, err)
+	}
+}
+
+func TestDocMediaDownloadIncludesExtraQueryParam(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-download-extra-app"))
+	extra := `{"bitablePerm":{"tableId":"tblO6OeNZxfabcef","attachments":{"fld32zZi5I":{"rec0BuOHq":["tok_123"]}}}}`
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/drive/v1/medias/tok_123/download?" + url.Values{"extra": []string{extra}}.Encode(),
+		Status: 200,
+		Body:   []byte("payload"),
+		Headers: http.Header{
+			"Content-Type": []string{"application/octet-stream"},
+		},
+	})
+
+	tmpDir := t.TempDir()
+	withDocsWorkingDir(t, tmpDir)
+
+	err := mountAndRunDocs(t, DocMediaDownload, []string{
+		"+media-download",
+		"--token", "tok_123",
+		"--output", "download.bin",
+		"--extra", extra,
+		"--as", "bot",
+	}, f, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := decodeDocCommandOutput(t, stdout)
+	wantPath := mustDocSafeOutputPath(t, "download.bin")
 	if got.Data.SavedPath != wantPath {
 		t.Fatalf("saved_path = %q, want %q", got.Data.SavedPath, wantPath)
 	}

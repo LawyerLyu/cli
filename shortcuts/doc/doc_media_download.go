@@ -27,6 +27,7 @@ var DocMediaDownload = common.Shortcut{
 		{Name: "token", Desc: "resource token (file_token or whiteboard_id)", Required: true},
 		{Name: "output", Desc: "local save path", Required: true},
 		{Name: "type", Default: "media", Desc: "resource type: media (default) | whiteboard"},
+		{Name: "extra", Desc: "extra query string for drive media download auth, for example advanced-permission bitable attachments"},
 		{Name: "overwrite", Type: "bool", Desc: "overwrite existing output file"},
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
@@ -39,15 +40,20 @@ var DocMediaDownload = common.Shortcut{
 				Desc("(when --type=whiteboard) Download whiteboard as image").
 				Set("token", token).Set("output", outputPath)
 		}
-		return common.NewDryRunAPI().
+		dry := common.NewDryRunAPI().
 			GET("/open-apis/drive/v1/medias/:token/download").
 			Desc("(when --type=media) Download document media file").
 			Set("token", token).Set("output", outputPath)
+		if extra := runtime.Str("extra"); extra != "" {
+			dry.Params(map[string]interface{}{"extra": extra})
+		}
+		return dry
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		token := runtime.Str("token")
 		outputPath := runtime.Str("output")
 		mediaType := runtime.Str("type")
+		extra := runtime.Str("extra")
 		overwrite := runtime.Bool("overwrite")
 
 		if err := validate.ResourceName(token, "--token"); err != nil {
@@ -68,10 +74,17 @@ var DocMediaDownload = common.Shortcut{
 			apiPath = fmt.Sprintf("/open-apis/drive/v1/medias/%s/download", encodedToken)
 		}
 
-		resp, err := runtime.DoAPIStream(ctx, &larkcore.ApiReq{
+		req := &larkcore.ApiReq{
 			HttpMethod: http.MethodGet,
 			ApiPath:    apiPath,
-		})
+		}
+		if mediaType != "whiteboard" && extra != "" {
+			req.QueryParams = larkcore.QueryParams{
+				"extra": []string{extra},
+			}
+		}
+
+		resp, err := runtime.DoAPIStream(ctx, req)
 		if err != nil {
 			return output.ErrNetwork("download failed: %v", err)
 		}
