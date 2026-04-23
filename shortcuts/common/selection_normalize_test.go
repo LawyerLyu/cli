@@ -21,9 +21,15 @@ func TestNormalizeSelectionWithEllipsis(t *testing.T) {
 			wantChanged: false,
 		},
 		{
-			name:        "ascii-only selection is untouched",
+			name:        "cjk-only selection is untouched",
 			input:       "欢迎大家多给反馈",
 			want:        "欢迎大家多给反馈",
+			wantChanged: false,
+		},
+		{
+			name:        "ascii-only selection is untouched",
+			input:       "hello world",
+			want:        "hello world",
 			wantChanged: false,
 		},
 		{
