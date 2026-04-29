@@ -1,5 +1,10 @@
 # Copyright (c) 2026 Lark Technologies Pte. Ltd.
 # SPDX-License-Identifier: MIT
+#
+# END USERS / AI ASSISTANTS: To upgrade an existing lark-cli install, run
+# `lark-cli update`. `make install` here is for CONTRIBUTORS building from
+# source — it will NOT match official release artifacts and may break the
+# self-update flow.
 
 BINARY   := lark-cli
 MODULE   := github.com/larksuite/cli
@@ -28,6 +33,22 @@ integration-test: build
 test: vet unit-test integration-test
 
 install: build
+	@if [ -n "$$I_AM_A_CONTRIBUTOR" ]; then \
+		: ; \
+	elif [ -t 0 ] && [ -t 1 ]; then \
+		echo "" ; \
+		echo "  make install builds from source — for CONTRIBUTORS only." ; \
+		echo "  To upgrade an existing lark-cli, run: lark-cli update" ; \
+		echo "" ; \
+		printf "  Continue installing from source? (y/N) " ; \
+		read ans ; \
+		case "$$ans" in y|Y|yes|YES) ;; *) echo "Aborted." ; exit 1 ;; esac ; \
+	else \
+		echo "make install: refusing in non-interactive mode." ; \
+		echo "  To upgrade lark-cli: run \`lark-cli update\`." ; \
+		echo "  To install from source non-interactively: I_AM_A_CONTRIBUTOR=1 make install" ; \
+		exit 1 ; \
+	fi
 	install -d $(PREFIX)/bin
 	install -m755 $(BINARY) $(PREFIX)/bin/$(BINARY)
 	@echo "OK: $(PREFIX)/bin/$(BINARY) ($(VERSION))"
