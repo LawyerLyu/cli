@@ -272,6 +272,8 @@ function baseRecordArgs(config, limit, offset) {
     "+record-list",
     "--as",
     "user",
+    "--format",
+    "json",
     "--base-token",
     config.baseToken,
     "--table-id",
