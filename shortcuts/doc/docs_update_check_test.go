@@ -364,6 +364,19 @@ func TestDocsUpdateWarningsAggregates(t *testing.T) {
 	}
 }
 
+func TestDocsUpdateWarningsWholeParagraphStyle(t *testing.T) {
+	t.Parallel()
+
+	// Whole-paragraph italic should surface via docsUpdateWarnings.
+	warnings := docsUpdateWarnings("append", "*整段斜体段落*")
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d: %v", len(warnings), warnings)
+	}
+	if !strings.Contains(warnings[0], "*…*") {
+		t.Fatalf("unexpected warning text: %q", warnings[0])
+	}
+}
+
 func TestDocsUpdateWarningsEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -481,6 +494,16 @@ func TestCheckDocsUpdateWholeParagraphStyle(t *testing.T) {
 		{
 			name:     "triple asterisk not matched (covered by bold+italic check)",
 			markdown: "***text***",
+			wantHint: false,
+		},
+		{
+			name:     "asymmetric markers not matched (*text**)",
+			markdown: "*text**",
+			wantHint: false,
+		},
+		{
+			name:     "whitespace-only inside markers not matched",
+			markdown: "*   *",
 			wantHint: false,
 		},
 		{

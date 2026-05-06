@@ -292,7 +292,13 @@ func leadingRun(s string, c byte) string {
 // emphasis span: *…* or **…** (at least one non-whitespace char inside).
 // CJK and ASCII content both match; we deliberately do NOT match ***…***
 // because that is already covered by checkDocsUpdateBoldItalic.
-var wholeParagraphStyleRe = regexp.MustCompile(`^\*{1,2}[^*\n]+\*{1,2}$`)
+// wholeParagraphStyleRe matches a line whose entire content is exactly one
+// *italic* or **bold** span. Requirements: opener and closer must be the same
+// number of asterisks (1 or 2), content has no * or newline, and at least one
+// non-whitespace non-asterisk character is present (prevents `*   *` matches).
+var wholeParagraphStyleRe = regexp.MustCompile(
+	`^(?:\*[^*\n]*[^\s*\n][^*\n]*\*|\*\*[^*\n]*[^\s*\n][^*\n]*\*\*)$`,
+)
 
 // checkDocsUpdateWholeParagraphStyle warns when a markdown paragraph
 // consists entirely of *italic* or **bold** markers. Lark's markdown
