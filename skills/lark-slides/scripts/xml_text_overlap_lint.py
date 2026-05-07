@@ -8,16 +8,17 @@ import json
 import re
 import sys
 import xml.etree.ElementTree as ET
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
 
-class LayoutLintError(Exception):
+class XmlTextOverlapLintError(Exception):
     pass
 
 
 def fail(message: str) -> None:
-    raise LayoutLintError(message)
+    raise XmlTextOverlapLintError(message)
 
 
 def read_file(file_path: str | Path) -> str:
@@ -187,33 +188,30 @@ def is_text_element(element: dict[str, Any]) -> bool:
     return element["kind"] == "shape" and element["type"] == "text"
 
 
-def is_backgroundish(element: dict[str, Any], slide_area: int | float) -> bool:
-    if slide_area <= 0:
-        return False
-    area = element["width"] * element["height"]
-    if element["kind"] == "img":
-        return area >= slide_area * 0.45
-    if element["kind"] == "shape" and element["type"] != "text":
-        return area >= slide_area * 0.35
-    return False
+def has_text_content(element: dict[str, Any]) -> bool:
+    return bool(element.get("text"))
 
 
-def should_flag_overlap(left: dict[str, Any], right: dict[str, Any], slide_area: int | float) -> bool:
-    if is_backgroundish(left, slide_area) or is_backgroundish(right, slide_area):
+def is_decorative_text(element: dict[str, Any]) -> bool:
+    text = element.get("text") or ""
+    return bool(text) and re.search(r"[A-Za-z0-9\u4e00-\u9fff]", text) is None
+
+
+def normalize_text_for_overlap(text: str) -> str:
+    return re.sub(r"\s+", "", text)
+
+
+def is_similar_text_overlay(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    left_text = normalize_text_for_overlap(left.get("text") or "")
+    right_text = normalize_text_for_overlap(right.get("text") or "")
+    if not left_text or not right_text:
         return False
-    if is_text_element(left) and is_text_element(right):
+    if left_text == right_text or left_text in right_text or right_text in left_text:
         return True
-    allowed_companions = {"img", "table", "chart"}
-    return (
-        is_text_element(left) and right["kind"] in allowed_companions
-    ) or (
-        is_text_element(right) and left["kind"] in allowed_companions
-    )
+    return SequenceMatcher(None, left_text, right_text).ratio() >= 0.75
 
 
-def estimate_text_height(element: dict[str, Any]) -> int | None:
-    if element["kind"] != "shape" or element["type"] != "text" or not element.get("text"):
-        return None
+def estimate_text_line_count(element: dict[str, Any]) -> int:
     font_size = element["fontSize"] if isinstance(element["fontSize"], (int, float)) else 16
     chars_per_line = max(1, int(element["width"] // max(font_size * 0.55, 1)))
     paragraphs = [paragraph for paragraph in re.split(r"\n+", element["text"]) if paragraph]
@@ -221,43 +219,88 @@ def estimate_text_height(element: dict[str, Any]) -> int | None:
     for paragraph in paragraphs:
         logical_length = max(len(paragraph), 1)
         line_count += max(1, -(-logical_length // chars_per_line))
-    return int((line_count * font_size * 1.35) + 12 + 0.999999)
+    return max(line_count, 1)
 
 
-def lint_slide(slide_xml: str, slide_number: int, width: int, height: int) -> dict[str, Any]:
+def estimate_text_visual_bbox(element: dict[str, Any]) -> dict[str, int | float] | None:
+    if not is_text_element(element) or not has_text_content(element) or is_decorative_text(element):
+        return None
+
+    font_size = element["fontSize"] if isinstance(element["fontSize"], (int, float)) else 16
+    char_width = max(font_size * 0.55, 1)
+    line_count = estimate_text_line_count(element)
+    visual_width = min(element["width"], max(1, len(element["text"]) * char_width))
+    visual_height = min(element["height"], max(1, line_count * font_size * 1.2))
+    return {
+        "x": element["x"],
+        "y": element["y"],
+        "width": visual_width,
+        "height": visual_height,
+    }
+
+
+def intersection_area(left: dict[str, Any], right: dict[str, Any]) -> int | float:
+    width = min(left["x"] + left["width"], right["x"] + right["width"]) - max(left["x"], right["x"])
+    height = min(left["y"] + left["height"], right["y"] + right["height"]) - max(left["y"], right["y"])
+    if width <= 0 or height <= 0:
+        return 0
+    return width * height
+
+
+def is_template_text_stack(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    if not (is_text_element(left) and is_text_element(right)):
+        return False
+    if not (has_text_content(left) and has_text_content(right)):
+        return True
+    top, bottom = sorted([left, right], key=lambda element: element["y"])
+    top_type = top.get("textType")
+    bottom_type = bottom.get("textType")
+    allowed_pairs = {
+        ("title", "sub-headline"),
+        ("title", None),
+        ("headline", "headline"),
+        ("headline", None),
+    }
+    if (top_type, bottom_type) not in allowed_pairs:
+        return False
+    same_column = abs(top["x"] - bottom["x"]) <= 4
+    vertical_offset = bottom["y"] - top["y"]
+    top_font_size = float(top.get("fontSize", 16))
+    return same_column and vertical_offset >= top_font_size * 0.75
+
+
+def should_flag_overlap(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    if is_text_element(left) and not has_text_content(left):
+        return False
+    if is_text_element(right) and not has_text_content(right):
+        return False
+    if is_template_text_stack(left, right):
+        return False
+    if is_text_element(left) and is_text_element(right):
+        if is_similar_text_overlay(left, right):
+            return False
+        left_visual = estimate_text_visual_bbox(left)
+        right_visual = estimate_text_visual_bbox(right)
+        if left_visual is None or right_visual is None:
+            return False
+        overlap_area = intersection_area(left_visual, right_visual)
+        if overlap_area <= 0:
+            return False
+        smaller_area = min(
+            left_visual["width"] * left_visual["height"],
+            right_visual["width"] * right_visual["height"],
+        )
+        return smaller_area > 0 and overlap_area / smaller_area >= 0.30
+    return False
+
+
+def lint_slide(slide_xml: str, slide_number: int) -> dict[str, Any]:
     elements = extract_elements(slide_xml)
     issues: list[dict[str, Any]] = []
-    slide_area = width * height
-
-    for element in elements:
-        if (
-            element["x"] < 0
-            or element["y"] < 0
-            or element["x"] + element["width"] > width
-            or element["y"] + element["height"] > height
-        ):
-            issues.append(
-                {
-                    "level": "error",
-                    "code": "out_of_bounds",
-                    "element": element["id"],
-                    "message": f'{element["id"]} exceeds slide bounds',
-                }
-            )
-        estimated_height = estimate_text_height(element)
-        if estimated_height is not None and estimated_height > element["height"]:
-            issues.append(
-                {
-                    "level": "warning",
-                    "code": "text_height_risk",
-                    "element": element["id"],
-                    "message": f'{element["id"]} may need {estimated_height}px height but only has {element["height"]}px',
-                }
-            )
 
     for index, left in enumerate(elements):
         for right in elements[index + 1 :]:
-            if not intersects(left, right) or not should_flag_overlap(left, right, slide_area):
+            if not intersects(left, right) or not should_flag_overlap(left, right):
                 continue
             issues.append(
                 {
@@ -265,31 +308,6 @@ def lint_slide(slide_xml: str, slide_number: int, width: int, height: int) -> di
                     "code": "bbox_overlap",
                     "elements": [left["id"], right["id"]],
                     "message": f'{left["id"]} overlaps {right["id"]}',
-                }
-            )
-
-    footer_candidates = [
-        element
-        for element in elements
-        if element["kind"] == "shape"
-        and element["type"] == "text"
-        and element["y"] >= height - 80
-        and element["height"] <= 60
-    ]
-    for footer in footer_candidates:
-        for element in elements:
-            if (
-                element["id"] == footer["id"]
-                or not intersects(footer, element)
-                or not should_flag_overlap(footer, element, slide_area)
-            ):
-                continue
-            issues.append(
-                {
-                    "level": "warning",
-                    "code": "footer_collision",
-                    "elements": [footer["id"], element["id"]],
-                    "message": f'{footer["id"]} is being crowded by {element["id"]}',
                 }
             )
 
@@ -309,7 +327,7 @@ def lint_xml(xml: str, source_path: str | None = None) -> dict[str, Any]:
 
     presentation = parse_presentation(xml)
     slides = [
-        lint_slide(slide_xml, index + 1, presentation["width"], presentation["height"])
+        lint_slide(slide_xml, index + 1)
         for index, slide_xml in enumerate(presentation["slides"])
     ]
     error_count = sum(1 for slide in slides for issue in slide["issues"] if issue["level"] == "error")
@@ -323,7 +341,7 @@ def lint_xml(xml: str, source_path: str | None = None) -> dict[str, Any]:
 
 
 def print_usage() -> None:
-    print("Usage:\n  python3 layout_lint.py --input <presentation.xml>", file=sys.stderr)
+    print("Usage:\n  python3 xml_text_overlap_lint.py --input <presentation.xml>", file=sys.stderr)
 
 
 def run_cli(argv: list[str] | None = None) -> None:
@@ -344,6 +362,6 @@ def run_cli(argv: list[str] | None = None) -> None:
 if __name__ == "__main__":
     try:
         run_cli()
-    except LayoutLintError as error:
-        print(f"layout-lint error: {error}", file=sys.stderr)
+    except XmlTextOverlapLintError as error:
+        print(f"xml-text-overlap-lint error: {error}", file=sys.stderr)
         raise SystemExit(1) from error
