@@ -15,7 +15,7 @@ function usage() {
 
 Options:
   --loader-profile <name>     lark-cli profile that can read the eval Base
-  --executor-profile <name>   lark-cli profile used for blind docs search
+  --executor-profile <name>   lark-cli profile used for blind drive search
   --run-id <id>               run id, defaults to UTC YYYY-MM-DDTHH-MMZ
   --subset <n>                keep first n cases after dataset conversion
   --snapshot-only             fetch dataset locally, then stop before blind checks
@@ -205,6 +205,37 @@ function readTaintedTokens(root) {
     }
   }
   return tokens;
+}
+
+function addTokensFromValue(value, tokens) {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      addTokensFromValue(item, tokens);
+    }
+    return;
+  }
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) {
+      addTokensFromValue(item, tokens);
+    }
+    return;
+  }
+  if (typeof value !== "string") {
+    return;
+  }
+  for (const match of value.match(/[A-Za-z0-9_-]{12,}/g) || []) {
+    tokens.add(match);
+  }
+}
+
+function readRunTaintedTokens(runDir) {
+  const file = path.join(runDir, "cloud-doc", "tainted_tokens.json");
+  if (!fs.existsSync(file)) {
+    return [];
+  }
+  const tokens = new Set();
+  addTokensFromValue(JSON.parse(fs.readFileSync(file, "utf8")), tokens);
+  return [...tokens];
 }
 
 function readExcludedUserIds(root) {
@@ -564,7 +595,7 @@ function runPreflight(config, cases, taintedTokens) {
   const rows = [];
   for (const item of cases) {
     const result = runLarkJson(config.executorProfile, [
-      "docs",
+      "drive",
       "+search",
       "--as",
       "user",
@@ -652,7 +683,12 @@ function main() {
   ensureDir(path.join(runDir, "trajectories"));
 
   const excluded = readExcludedUserIds(root);
-  const taintedTokens = readTaintedTokens(root);
+  const taintedTokens = [
+    ...new Set([
+      ...readTaintedTokens(root),
+      ...readRunTaintedTokens(runDir),
+    ]),
+  ];
 
   if (config.snapshotOnly) {
     const loaderAuthResult = runLarkJson(config.loaderProfile, ["auth", "status"]);

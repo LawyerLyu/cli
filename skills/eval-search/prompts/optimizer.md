@@ -40,7 +40,7 @@
 1. **读 summary 全部 findings**，按 `priority` 降序处理
 2. **对每条 finding**：
    - `skill_prompts` bucket → 用 Edit 改 cli 仓库的指定 markdown，保持 tone / 结构与周边一致
-   - `search_strategy` bucket → 沉淀到 cli 仓库对应域的 `references/*-search.md`（如 `skills/lark-doc/references/lark-doc-search.md`），不要塞进本 harness 的 prompt 模板
+   - `search_strategy` bucket → 沉淀到 cli 仓库对应域的 `references/*-search.md`（如 `skills/lark-drive/references/lark-drive-search.md`），不要塞进本 harness 的 prompt 模板
    - `tool_capability` bucket → 分两步判断：
      1. 如果 finding 本质是 cli 封装层不够（缺 shortcut、shortcut 输出难解析），评估能否在 cli 仓库加 shortcut 解决
      2. 如果是 OAPI 层（`BuildDisplayInfo` 信息不够、字段映射 bug），Read [`../references/open-repo-layout.md`](../references/open-repo-layout.md) 并严格按白名单改 open 仓库。不在白名单的 → 产出 issue 正文，写进 `unhandled_findings.md` 的 `proposed_issue` 段
@@ -70,7 +70,7 @@
   "case_specific_changes": [
     {
       "repo": "cli",
-      "file": "skills/lark-doc/references/lark-doc-search.md",
+      "file": "skills/lark-drive/references/lark-drive-search.md",
       "change_summary": "在同义词小节新增 '交个朋友 → Livflow 智能平台' 映射",
       "driving_cases": ["case_005"],
       "risk": "该同义词只由 case_005 驱动，强度弱。reviewer 可判断是否保留"
@@ -79,7 +79,7 @@
   "principled_changes": [
     {
       "repo": "cli",
-      "file": "skills/lark-doc/SKILL.md",
+      "file": "skills/lark-drive/SKILL.md",
       "change_summary": "新增 '搜索词改写失败 3 次后给 best-effort 答案' 决策规则",
       "driving_cases": ["case_003", "case_007", "case_011"],
       "rationale": "泛化到任何搜索类任务的退出条件，不依赖具体 case 内容"

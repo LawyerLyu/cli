@@ -34,11 +34,8 @@ tests/mail/reports/
 
 # Generated / test artifacts
 .hammer/
-.harness/runs/
-.harness_local/
 internal/registry/meta_data.json
 cmd/api/download.bin
 app.log
 /sidecar-server-demo
 /server-demo
-tests/eval-search/runs/

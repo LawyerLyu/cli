@@ -8,7 +8,7 @@ function usage() {
   console.log(`Usage:
   node --experimental-strip-types tests/eval-search/eval-search-collect-search.ts --run-dir <dir> [--page-size 10] [--fetch-top 3] [--max-query-variants 4]
 
-Collect docs +search evidence for every case in dataset.jsonl. This collector
+Collect drive +search evidence for every case in dataset.jsonl. This collector
 reads only case_id and query from the dataset, then writes trajectories plus
 raw/executor_search.json. It runs a small blind query-rewrite loop, annotates
 known tainted/eval-process artifacts without filtering them, and fetches the
@@ -117,7 +117,28 @@ function loadCases(datasetFile) {
     });
 }
 
-function loadTaintedTokens(root) {
+function addTokensFromValue(value, tokens) {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      addTokensFromValue(item, tokens);
+    }
+    return;
+  }
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) {
+      addTokensFromValue(item, tokens);
+    }
+    return;
+  }
+  if (typeof value !== "string") {
+    return;
+  }
+  for (const match of value.match(/[A-Za-z0-9_-]{12,}/g) || []) {
+    tokens.add(match);
+  }
+}
+
+function loadTaintedTokens(root, runDir = "") {
   const file = path.join(root, "skills/eval-search/references/known-tainted-tokens.md");
   const tokens: Set<string> = new Set();
   if (!fs.existsSync(file)) {
@@ -139,6 +160,10 @@ function loadTaintedTokens(root) {
     if (match) {
       tokens.add(match[1]);
     }
+  }
+  const localFile = runDir ? path.join(runDir, "cloud-doc", "tainted_tokens.json") : "";
+  if (localFile && fs.existsSync(localFile)) {
+    addTokensFromValue(JSON.parse(fs.readFileSync(localFile, "utf8")), tokens);
   }
   return tokens;
 }
@@ -422,6 +447,21 @@ function scoreResult(result, query, variantIndex) {
   return score;
 }
 
+function annotateEvidenceStatus(result, query, taintedTokens) {
+  const tainted = isTainted(result, taintedTokens);
+  return {
+    ...result,
+    tainted,
+    suspicious_artifact_reason: suspiciousArtifactReason(result, query),
+    evidence_excluded: tainted,
+    evidence_excluded_reason: tainted ? "known_tainted_token" : "",
+  };
+}
+
+function isEvidenceCandidate(result) {
+  return !result.evidence_excluded && !result.tainted;
+}
+
 function fetchDoc(result, index) {
   const fetchedAt = new Date().toISOString();
   const response = runLark([
@@ -483,6 +523,9 @@ function collectFetches(results, fetchTop) {
     if (!isFetchable(result)) {
       continue;
     }
+    if (!isEvidenceCandidate(result)) {
+      continue;
+    }
     if (result.score < 4) {
       continue;
     }
@@ -497,7 +540,7 @@ function collectFetches(results, fetchTop) {
 
 function runSearch(query, pageSize) {
   return runLark([
-    "docs",
+    "drive",
     "+search",
     "--as",
     "user",
@@ -527,6 +570,8 @@ function mergeSearchResults(rounds, originalQuery, taintedTokens) {
         tainted: isTainted(result, taintedTokens),
         suspicious_artifact_reason: suspiciousArtifactReason(result, originalQuery),
       };
+      next.evidence_excluded = Boolean(next.tainted);
+      next.evidence_excluded_reason = next.tainted ? "known_tainted_token" : "";
       if (!existing || next.score > existing.score) {
         byKey.set(key, next);
       }
@@ -665,23 +710,38 @@ function fallbackAnswerFrame(query) {
 
 function synthesizeAnswer(query, searchRow) {
   const fetched = (searchRow.fetches || []).filter((item) => item.ok);
-  const visibleTop = (searchRow.results || []).slice(0, 5);
+  const evidenceTop = (searchRow.evidence_results || []).slice(0, 5);
+  const excludedTop = (searchRow.non_evidential_results || []).slice(0, 3);
   if (fetched.length === 0) {
     const fallback = fallbackAnswerFrame(query);
     if (fallback.length > 0) {
       return [
         "未读取到足够可信的非污染文档正文。",
         ...fallback.map((item) => `- ${item}`),
-        "搜索候选：",
-        ...visibleTop.map((item, index) => `${index + 1}. ${item.title || item.url}`),
+        "非污染搜索候选：",
+        ...(evidenceTop.length > 0
+          ? evidenceTop.map((item, index) => `${index + 1}. ${item.title || item.url}`)
+          : ["无"]),
+        ...(excludedTop.length > 0
+          ? [
+              "已观测但不作为证据的污染候选：",
+              ...excludedTop.map((item, index) => `${index + 1}. ${item.title || item.url}`),
+            ]
+          : []),
       ].join("\n");
     }
-    return visibleTop.length === 0
-      ? "未找到直接相关的非污染云文档搜索结果。"
-      : [
-          "未读取到足够可信的非污染文档正文，搜索到的主要候选如下：",
-          ...visibleTop.map((item, index) => `${index + 1}. ${item.title || item.url}`),
-        ].join("\n");
+    if (evidenceTop.length === 0) {
+      return excludedTop.length === 0
+        ? "未找到直接相关的非污染云文档搜索结果。"
+        : [
+            "搜索命中了已知污染材料，但没有找到可作为答案证据的非污染云文档。",
+            ...excludedTop.map((item, index) => `${index + 1}. ${item.title || item.url}`),
+          ].join("\n");
+    }
+    return [
+      "未读取到足够可信的非污染文档正文，搜索到的主要候选如下：",
+      ...evidenceTop.map((item, index) => `${index + 1}. ${item.title || item.url}`),
+    ].join("\n");
   }
 
   const lines = [`基于已读取的 ${fetched.length} 个非污染文档，提取到以下答复线索：`];
@@ -714,7 +774,9 @@ function synthesizeAnswer(query, searchRow) {
 }
 
 function writeTrajectory(runDir, caseItem, searchRow) {
-  const top = searchRow.results.slice(0, 5);
+  const topObserved = searchRow.results.slice(0, 5);
+  const topEvidence = (searchRow.evidence_results || []).slice(0, 5);
+  const nonEvidential = (searchRow.non_evidential_results || []).slice(0, 10);
   const fetched = (searchRow.fetches || []).filter((item) => item.ok);
   const answer = synthesizeAnswer(caseItem.query, searchRow);
 
@@ -724,12 +786,20 @@ function writeTrajectory(runDir, caseItem, searchRow) {
     cmd: item.cmd,
     outcome_summary:
       item.error ||
-      `docs +search variant ${item.variant_index + 1}/${searchRow.search_rounds.length} returned ${
+      `drive +search variant ${item.variant_index + 1}/${searchRow.search_rounds.length} returned ${
         item.results.length
       } compact result(s); top title: ${item.results[0]?.title || "none"}`,
     query_variant: item.query,
     result_tokens: item.results.map((result) => result.token).filter(Boolean),
     result_urls: item.results.map((result) => result.url).filter(Boolean),
+    tainted_tokens_observed: item.results
+      .filter((result) => result.tainted)
+      .map((result) => result.token)
+      .filter(Boolean),
+    evidence_tokens: item.results
+      .filter((result) => isEvidenceCandidate(result))
+      .map((result) => result.token)
+      .filter(Boolean),
   }));
   const fetchRounds = (searchRow.fetches || []).map((item, index) => ({
     idx: searchRounds.length + index + 1,
@@ -751,18 +821,39 @@ function writeTrajectory(runDir, caseItem, searchRow) {
       ...fetchRounds,
     ],
     answer,
+    observed_top_results: topObserved.map((item) => ({
+      title: item.title,
+      url: item.url,
+      token: item.token,
+      tainted: Boolean(item.tainted),
+      evidence_excluded: Boolean(item.evidence_excluded),
+      evidence_excluded_reason: item.evidence_excluded_reason || "",
+      suspicious_artifact_reason: item.suspicious_artifact_reason || "",
+    })),
+    evidence_top_results: topEvidence.map((item) => ({
+      title: item.title,
+      url: item.url,
+      token: item.token,
+      suspicious_artifact_reason: item.suspicious_artifact_reason || "",
+    })),
+    non_evidential_results: nonEvidential.map((item) => ({
+      title: item.title,
+      url: item.url,
+      token: item.token,
+      reason: item.evidence_excluded_reason || "unknown",
+    })),
     referenced_urls: [
       ...new Set([
         ...fetched.map((item) => item.url).filter(Boolean),
-        ...top.map((item) => item.url).filter(Boolean),
+        ...topEvidence.map((item) => item.url).filter(Boolean),
       ]),
     ],
     rounds_used: searchRounds.length + (searchRow.fetches || []).length,
-    gave_up: fetched.length === 0 && top.length === 0,
+    gave_up: fetched.length === 0 && topEvidence.length === 0,
     notes:
       fetched.length > 0
-        ? `multi-query search+fetch executor baseline; fetched strongest document-like hits; tainted_observed=${searchRow.tainted_results}; suspicious_observed=${searchRow.suspicious_artifact_results}; tainted_fetched=${searchRow.tainted_fetches}; suspicious_fetched=${searchRow.suspicious_artifact_fetches}`
-        : `multi-query search executor baseline; no document-like hit was fetched; tainted_observed=${searchRow.tainted_results}; suspicious_observed=${searchRow.suspicious_artifact_results}`,
+        ? `multi-query search+fetch executor baseline; fetched strongest non-tainted document-like hits; evidence_candidates=${searchRow.evidence_results_count}; tainted_observed=${searchRow.tainted_results}; non_evidential_observed=${searchRow.non_evidential_results_count}; suspicious_observed=${searchRow.suspicious_artifact_results}; tainted_fetched=${searchRow.tainted_fetches}; suspicious_fetched=${searchRow.suspicious_artifact_fetches}`
+        : `multi-query search executor baseline; no non-tainted document-like hit was fetched; evidence_candidates=${searchRow.evidence_results_count}; tainted_observed=${searchRow.tainted_results}; non_evidential_observed=${searchRow.non_evidential_results_count}; suspicious_observed=${searchRow.suspicious_artifact_results}`,
   };
   fs.writeFileSync(
     path.join(runDir, "trajectories", `${caseItem.case_id}.json`),
@@ -784,7 +875,7 @@ function main() {
   const rawDir = path.join(runDir, "raw");
   ensureDir(rawDir);
   ensureDir(path.join(runDir, "trajectories"));
-  const taintedTokens = loadTaintedTokens(root);
+  const taintedTokens = loadTaintedTokens(root, runDir);
 
   const rows = [];
   for (const item of loadCases(datasetFile)) {
@@ -794,7 +885,9 @@ function main() {
       const result = runSearch(query, args.pageSize);
       const results =
         result.ok && result.json?.ok !== false
-          ? (result.json?.data?.results || []).map(compactResult)
+          ? (result.json?.data?.results || [])
+              .map(compactResult)
+              .map((item) => annotateEvidenceStatus(item, item.query || query, taintedTokens))
           : [];
       searchRounds.push({
         variant_index: index,
@@ -809,7 +902,7 @@ function main() {
       });
       const mergedSoFar = mergeSearchResults(searchRounds, item.query, taintedTokens);
       const fetchableCandidates = mergedSoFar.filter(
-        (row) => isFetchable(row) && row.score >= 4,
+        (row) => isEvidenceCandidate(row) && isFetchable(row) && row.score >= 4,
       );
       if (fetchableCandidates.length >= args.fetchTop && index > 0) {
         break;
@@ -817,6 +910,8 @@ function main() {
     }
     const ended = new Date().toISOString();
     const results = mergeSearchResults(searchRounds, item.query, taintedTokens);
+    const evidenceResults = results.filter((row) => isEvidenceCandidate(row));
+    const nonEvidentialResults = results.filter((row) => row.evidence_excluded);
     const fetches = collectFetches(results, args.fetchTop);
     const row = {
       case_id: item.case_id,
@@ -831,7 +926,11 @@ function main() {
         .join("\n"),
       search_rounds: searchRounds,
       results,
+      evidence_results: evidenceResults,
+      non_evidential_results: nonEvidentialResults,
       fetches,
+      evidence_results_count: evidenceResults.length,
+      non_evidential_results_count: nonEvidentialResults.length,
       tainted_results: results.filter((row) => row.tainted).length,
       suspicious_artifact_results: results.filter((row) => row.suspicious_artifact_reason).length,
       tainted_fetches: fetches.filter((fetch) => fetch.tainted).length,
@@ -851,6 +950,7 @@ function main() {
         run_dir: path.relative(root, runDir),
         searched: rows.length,
         empty_results: rows.filter((row) => row.results.length === 0).length,
+        empty_evidence_results: rows.filter((row) => row.evidence_results.length === 0).length,
         fetched: rows.reduce((sum, row) => sum + row.fetches.length, 0),
         fetched_success: rows.reduce(
           (sum, row) => sum + row.fetches.filter((fetch) => fetch.ok).length,
@@ -862,6 +962,14 @@ function main() {
         ),
         tainted_observed: rows.reduce(
           (sum, row) => sum + row.tainted_results,
+          0,
+        ),
+        non_evidential_observed: rows.reduce(
+          (sum, row) => sum + row.non_evidential_results_count,
+          0,
+        ),
+        evidence_candidates: rows.reduce(
+          (sum, row) => sum + row.evidence_results_count,
           0,
         ),
         suspicious_artifacts_fetched: rows.reduce(

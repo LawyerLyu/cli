@@ -59,7 +59,8 @@ tainted_tokens:
 ## 执行侧处理规则
 
 - Preflight 命中 tainted token 只标记风险，不阻断整轮评测。
-- Executor/collector 不能因为命中本文件就跳过、降权或隐藏结果；否则评测会被过滤规则美化，不能反映真实搜索行为。
+- Executor/collector 不能因为命中本文件就隐藏结果；否则评测会被过滤规则美化，不能反映真实搜索行为。
+- Executor/collector 必须把命中本文件的结果标为 `tainted=true` / `evidence_excluded=true`。这些结果可以出现在 observed search results 中，但不能进入 evidence candidates、fetch 队列、答案合成或 recall top-5 证据。
 - Collector 应把命中的 token 写进 trajectory / raw evidence，保留 `tainted` 这类元数据，交给 Judge 按 RUBRIC 判定污染扣分。
 - `verdicts.json` 里只对“fetch 过 tainted token 且答案受其影响”的 case 扣污染分；单纯 search 命中但未 fetch 的 case 不扣污染分，但可以作为污染风险记录。
 - 新增 collector、shortcut 或搜索策略时，都要把本文件当作统一标记清单读取，避免各处散落 hard-coded 污染 token。
@@ -73,3 +74,12 @@ tainted_tokens:
 - 发布用的 retrospective → PR description / GitHub wiki / release notes
 
 这样根本不会污染飞书搜索语料，污染标记清单的维护压力也会逐渐下降。
+
+## `/eval-search cycle` 的例外
+
+如果用户明确要求把中间结果记录到云文档，允许使用 [`cycle.md`](cycle.md) 的云文档日志，但必须遵守：
+
+1. 云文档只写阶段状态、分数摘要、finding 摘要、PR URL 和本地产物路径；不写标准答案、完整 trajectory、source_urls 或 key_error_snippets
+2. 创建或绑定报告文档后，立刻把 doc token 写入本轮 `tests/eval-search/runs/<run-id>/cloud-doc/tainted_tokens.json`
+3. 本 cycle 的 regression / after-run 必须把该 token 作为额外污染 token
+4. 需要持久 blocklist 时，单独开 `chore(eval-search): blocklist cycle report <run-id>` PR；不得混进搜索策略或能力优化 PR

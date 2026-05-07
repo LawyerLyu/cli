@@ -16,10 +16,10 @@
 
 ## 每个 case 的打分步骤
 
-1. **recall**：扫 trajectory 里的每一条 tool_use，提取被 fetch / resolve 过的 token 和 URL 集合。与 `source_urls` 做交集。按 RUBRIC 打分
+1. **recall**：扫 trajectory 里的每一条 tool_use，提取被 fetch / resolve 过的 token 和 URL 集合，并读取 `evidence_top_results` / search round 里的非污染 evidence tokens。与 `source_urls` 做交集。标记为 `tainted=true` 或 `evidence_excluded=true` 的 search 结果只能算污染观测，不能算 recall top-5 命中。按 RUBRIC 打分
 2. **accuracy**：把 `answer` 和 `expected.【关键信息】` 段逐条比对。优先应用 `expected.【打分备注】.可信无误`
 3. **completeness**：数 key points 覆盖数。优先应用 `expected.【打分备注】.完整详实`
-4. **contamination**：查 trajectory 是否 fetch 过 `preflight.tainted_tokens`；search-only 命中只记录风险，不扣污染分。若有 fetch，按 RUBRIC 给 `contamination_penalty`
+4. **contamination**：查 trajectory 是否 fetch 过 `preflight.tainted_tokens`；search-only 命中只记录风险，不扣污染分，也不作为 recall/accuracy/completeness 的证据。若有 fetch，按 RUBRIC 给 `contamination_penalty`
 5. **improvement 三桶**：从 trajectory 里找失败片段，分类写进 `tool_capability / search_strategy / skill_prompts`
 
 ## improvement 填写规则
@@ -75,7 +75,7 @@
       "finding_id": "F-002",
       "bucket": "tool_capability",
       "target_file": "shortcuts/docs/search.go",
-      "suggestion": "docs +search 返回结果没有 body_preview，agent 必须 fetch 才能判断相关性",
+      "suggestion": "drive +search 返回结果没有 body_preview，agent 必须 fetch 才能判断相关性",
       "driving_cases": ["case_001", "case_005"],
       "priority": "medium"
     }

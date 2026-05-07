@@ -9,7 +9,7 @@
 - view_id: `vewGToSnWl`
 - URL: https://bytedance.larkoffice.com/base/OOoEbNWhcaFOdisXDW7c0lKtn4g?table=tblGWdc19tKFZC6K&view=vewGToSnWl
 
-> **污染警告**：这个 base 本身会被 `docs +search` 命中。harness 必须把账号拆成两个 profile：loader profile 只用于读取这个 base 并生成 `dataset.jsonl`；executor profile 只用于盲测搜索，**不可**加入该 base 的查看权限，否则评测结果被自答污染。详见 [`pollution-preflight.md`](pollution-preflight.md)。
+> **污染警告**：这个 base 本身会被 `drive +search` 命中。harness 必须把账号拆成两个 profile：loader profile 只用于读取这个 base 并生成 `dataset.jsonl`；executor profile 只用于盲测搜索，**不可**加入该 base 的查看权限，否则评测结果被自答污染。详见 [`pollution-preflight.md`](pollution-preflight.md)。
 
 ## 原始字段（字段 id → 含义）
 

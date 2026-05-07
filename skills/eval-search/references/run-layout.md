@@ -37,6 +37,11 @@ node --experimental-strip-types tests/eval-search/eval-search-run.ts \
 
 ```
 tests/eval-search/runs/2026-04-15T10-00Z/
+├── cycle.json              # 仅 /eval-search cycle 阶段编排使用；记录云文档、阶段状态、PR URL
+├── cloud-doc/              # 仅 /eval-search cycle 使用；每次追加云文档前生成的 markdown 片段
+│   ├── 00-created.md
+│   ├── 20-run-finished.md
+│   └── tainted_tokens.json
 ├── meta.json               # run 元信息（cli 版本、loader/executor profile、账号、开始/结束时间）
 ├── raw/
 │   ├── base_records_pages.json
@@ -91,7 +96,7 @@ Executor 每完成 1 round（= 1 次 lark-cli 调用 + 解析），追加写入 
   "started_at": "...",
   "rounds": [
     {"idx": 1, "tool": "Read", "target": "skills/lark-doc/SKILL.md", "outcome_summary": "..."},
-    {"idx": 2, "tool": "Bash", "cmd": "lark-cli docs +search --query '华东 Aily'", "outcome_summary": "top-3: ..."},
+    {"idx": 2, "tool": "Bash", "cmd": "lark-cli drive +search --query '华东 Aily'", "outcome_summary": "top-3: ..."},
     ...
   ],
   "answer": null,

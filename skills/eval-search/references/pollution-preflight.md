@@ -2,9 +2,9 @@
 
 ## 动机
 
-评测集 base 自身、v1/v2 迭代记录文档、含 expected 的参考文档，都可能被 `docs +search` 命中。Executor 一旦 fetch 到，就是"开卷考试"——分数失去意义。
+评测集 base 自身、v1/v2 迭代记录文档、含 expected 的参考文档，都可能被 `drive +search` 命中。Executor 一旦 fetch 到，就是"开卷考试"——分数失去意义。
 
-v2 的教训：PM 的 dataset base 在第一次跑评测时，几乎所有 query 的 `docs +search` top-1 都是 dataset 自己。
+v2 的教训：PM 的 dataset base 在第一次跑评测时，几乎所有 query 的搜索 top-1 都是 dataset 自己。
 
 因此 `/eval-search run` 需要两个 lark-cli profile：
 - `loader-profile`：能读评测 Base，只负责拉取 live dataset 并写入 `dataset.jsonl`
@@ -53,7 +53,7 @@ lark-cli --profile <blind-runner> base +record-list \
 
 ```
 for each case in dataset.jsonl:
-  result = lark-cli --profile <blind-runner> docs +search --query "<query>" --page-size 20
+  result = lark-cli --profile <blind-runner> drive +search --query "<query>" --page-size 20
   hit_tokens = extract all obj_token / wiki_token from result
   tainted = hit_tokens ∩ known_tainted_tokens
 
@@ -65,6 +65,8 @@ for each case in dataset.jsonl:
       "top_20_tokens": [...]
     }
 ```
+
+实际执行时，`known_tainted_tokens` 由持久清单 [`known-tainted-tokens.md`](known-tainted-tokens.md) 和本轮 `cloud-doc/tainted_tokens.json` 合并得到。后者用于 `/eval-search cycle` 生成的临时报告文档，避免还没进入持久 blocklist 的过程材料影响本轮 after-run。
 
 **不阻断**，只标记。原因：有时 pre-flight 命中但 Executor 最终没 fetch，这种 case 依然有效，Judge 会打出正常 recall 分。
 

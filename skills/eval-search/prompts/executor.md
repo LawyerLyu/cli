@@ -24,8 +24,9 @@
 
 在发出第一条 lark-cli 命令之前，MUST 用 Read 读：
 - `skills/lark-shared/SKILL.md` — 认证、全局参数
-- `skills/lark-doc/SKILL.md` + `skills/lark-doc/references/lark-doc-search.md` — 云空间搜索
-（搜索方法论直接在 `lark-doc-search.md` 里：关键词改写 / 失败退出 / 大文档 fallback 都在该文件的决策规则段）
+- `skills/lark-drive/SKILL.md` + `skills/lark-drive/references/lark-drive-search.md` — 云空间资源发现；优先使用 `drive +search`，不要新增依赖已进入维护期的 `docs +search`
+- `skills/lark-doc/SKILL.md` — 命中文档后的 fetch / 内容读取
+（搜索方法论直接在 `lark-drive-search.md` 里：关键词改写 / 失败退出 / 答案型检索循环都在该文件的决策规则段）
 - `skills/lark-wiki/SKILL.md` — wiki 节点是壳的关键概念
 
 根据 query 类型可能还要读：`lark-im`、`lark-mail`、`lark-vc`、`lark-minutes`、`lark-contact` 等。
@@ -33,8 +34,8 @@
 ### 标准流程
 
 1. 阅读 query，拆"实体"（人名 / 时间 / 关键词 / 资源类型）
-2. 选择搜索入口（docs / im / mail / vc / minutes / ...）
-3. 发起搜索；若返回空或无相关结果，按 `lark-doc-search.md` 的"决策规则 / `--query` 高级语法"换 2-3 轮词（同义词 / `intitle:` / 排除词）
+2. 选择搜索入口（drive / im / mail / vc / minutes / ...）
+3. 发起搜索；若返回空或无相关结果，按 `lark-drive-search.md` 的"决策规则 / `--query` 高级语法"换 2-3 轮词（同义词 / `intitle:` / 排除词）
 4. 对 top 命中做进一步 fetch / resolve（wiki 节点必须先 `wiki +resolve-node`）
 5. 综合信息给出答案；若 3 轮改写仍无结果，给 best-effort 结论并明确说"未找到直接证据"
 6. 写 `<run-dir>/trajectories/<case_id>.json`，结束
