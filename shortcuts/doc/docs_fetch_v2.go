@@ -106,6 +106,7 @@ func buildFetchBody(runtime *common.RuntimeContext) map[string]interface{} {
 	if ro := buildReadOption(runtime); ro != nil {
 		body["read_option"] = ro
 	}
+	injectDocsScene(runtime, body)
 
 	return body
 }

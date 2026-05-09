@@ -4,12 +4,17 @@
 package doc
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/shortcuts/common"
 )
+
+// docsSceneContextKey lets in-process embedders pass a server-owned docs_ai
+// scene without exposing it as a user-controlled CLI flag.
+const docsSceneContextKey = "lark_cli_docs_scene"
 
 type documentRef struct {
 	Kind  string
@@ -61,6 +66,20 @@ func extractDocumentToken(raw, marker string) (string, bool) {
 // the parsed "data" field from the standard Lark response envelope {code, msg, data}.
 func doDocAPI(runtime *common.RuntimeContext, method, apiPath string, body interface{}) (map[string]interface{}, error) {
 	return runtime.DoAPIJSON(method, apiPath, nil, body)
+}
+
+func docsSceneFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	scene, _ := ctx.Value(docsSceneContextKey).(string)
+	return strings.TrimSpace(scene)
+}
+
+func injectDocsScene(runtime *common.RuntimeContext, body map[string]interface{}) {
+	if scene := docsSceneFromContext(runtime.Ctx()); scene != "" {
+		body["scene"] = scene
+	}
 }
 
 // stripBlockIDs removes "block_id" from each entry in data.document.newblocks.

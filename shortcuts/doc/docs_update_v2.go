@@ -11,15 +11,15 @@ import (
 )
 
 var validCommandsV2 = map[string]bool{
-	"str_replace":              true,
-	"str_delete":               true,
-	"block_delete":             true,
-	"block_insert_after":       true,
-	"block_copy_insert_after":  true,
-	"block_replace":            true,
-	"block_move_after":         true,
-	"overwrite":                true,
-	"append":                   true,
+	"str_replace":             true,
+	"str_delete":              true,
+	"block_delete":            true,
+	"block_insert_after":      true,
+	"block_copy_insert_after": true,
+	"block_replace":           true,
+	"block_move_after":        true,
+	"overwrite":               true,
+	"append":                  true,
 }
 
 // v2UpdateFlags returns the flag definitions for the v2 (OpenAPI) update path.
@@ -169,5 +169,6 @@ func buildUpdateBody(runtime *common.RuntimeContext) map[string]interface{} {
 	if v := runtime.Str("src-block-ids"); v != "" {
 		body["src_block_ids"] = v
 	}
+	injectDocsScene(runtime, body)
 	return body
 }
