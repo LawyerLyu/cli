@@ -39,7 +39,9 @@ metadata:
 3. 返回体中的 `meeting.id` **必须立刻记录**——后续 `+meeting-events` / `+meeting-leave` 都靠它，**不能用 9 位会议号替代**。
 4. 入会对所有参会人可见，执行前核实 9 位会议号来源，避免误入错会。
 5. 仅支持 `user` 身份，需提前 `lark-cli auth login` 并拥有 `vc:meeting.bot.join:write` scope。
-6. 若入会失败，优先查看 `+meeting-join` reference 的错误排查段落，重点确认会议号、密码、会议状态、等候室 / 审批以及会议是否禁止当前身份加入。
+6. 若 CLI stderr JSON 返回 `error.code=20017` / `ErrNotInGray`，说明当前用户未命中智能体参会灰度。提示用户加入早鸟群：https://go.larkoffice.com/join-chat/2f4nb0e1-fe00-4f67-bed7-25beaf533fbd。
+7. 若提示 `missing required scope(s)` / `permission_violations`，只按原逻辑提示 `lark-cli auth login --scope "vc:meeting.bot.join:write"`，不要混入早鸟群文案。
+8. 若入会失败，优先查看 `+meeting-join` reference 的错误排查段落，重点确认会议号、密码、会议状态、等候室 / 审批以及会议是否禁止当前身份加入。
 
 ### 2. 感知会中事件（读操作）
 
@@ -55,6 +57,8 @@ metadata:
 7. **必须识别分页信号**：只要响应里出现 `has_more=true`、pretty 里的 `more available`，或返回了非空 `page_token`，就不能把当前结果当作完整事件流；默认应继续分页，或明确告诉用户当前只是部分结果。
 8. 保留响应里的 `page_token`，下次增量拉取直接续，不要从头再拉。
 9. **只要你是基于 `+meeting-events` 来回答一场正在进行中的会议内容，就不能直接复用旧结果。** 无论用户是在问“现在/刚刚/最新”的状态，还是让你“总结一下这个会议讲什么”，都必须先重新拉一次当前事件流，确认拿到的是最新信息，再基于最新结果回答。只有在用户明确要求基于某次历史快照继续分析时，才可以复用旧结果。
+10. 若 CLI stderr JSON 返回 `error.code=20017` / `ErrNotInGray`，说明当前用户未命中智能体参会灰度。提示用户加入早鸟群：https://go.larkoffice.com/join-chat/2f4nb0e1-fe00-4f67-bed7-25beaf533fbd。
+11. 若提示 `missing required scope(s)` / `permission_violations`，只按原逻辑提示 `lark-cli auth login --scope "vc:meeting.meetingevent:read"`，不要混入早鸟群文案。
 
 ### 3. 离开会议（写操作）
 
@@ -62,6 +66,8 @@ metadata:
 2. `--meeting-id` **必须**是 `+meeting-join` 返回的长数字 `meeting.id`，**不接受 9 位会议号**。
 3. 离会**立即生效**，机器人从会议的参会人列表中消失，对其他参会人可见；若需要重新入会，再跑一次 `+meeting-join` 即可（非真正"不可逆"）。
 4. 仅支持 `user` 身份，scope 同 `+meeting-join`（`vc:meeting.bot.join:write`）。
+5. 若 CLI stderr JSON 返回 `error.code=20017` / `ErrNotInGray`，说明当前用户未命中智能体参会灰度。提示用户加入早鸟群：https://go.larkoffice.com/join-chat/2f4nb0e1-fe00-4f67-bed7-25beaf533fbd。
+6. 若提示 `missing required scope(s)` / `permission_violations`，只按原逻辑提示 `lark-cli auth login --scope "vc:meeting.bot.join:write"`，不要混入早鸟群文案。
 
 ### 4. Agent 参会最小闭环示范
 
