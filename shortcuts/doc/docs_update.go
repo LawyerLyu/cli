@@ -160,6 +160,16 @@ func executeUpdateV1(_ context.Context, runtime *common.RuntimeContext) error {
 		fmt.Fprintf(runtime.IO().ErrOut, "warning: %s\n", w)
 	}
 
+	// Overwrite replaces the entire document, silently discarding any
+	// whiteboard or file-attachment blocks that cannot be re-created from
+	// Markdown. Pre-fetch the current content and warn when such blocks
+	// are present so the caller can take a backup before proceeding.
+	if runtime.Str("mode") == "overwrite" {
+		if w := warnOverwriteResourceBlocks(runtime); w != "" {
+			fmt.Fprintf(runtime.IO().ErrOut, "warning: %s\n", w)
+		}
+	}
+
 	// Surface callout type= hint so users know to switch to background-color/
 	// border-color when they want a colored callout. Non-blocking, advisory.
 	if md := runtime.Str("markdown"); md != "" {
@@ -196,4 +206,56 @@ func buildUpdateArgsV1(runtime *common.RuntimeContext) map[string]interface{} {
 		args["new_title"] = v
 	}
 	return args
+}
+
+// warnOverwriteResourceBlocks pre-fetches the current document and returns a
+// non-empty warning string when the document contains whiteboard or file
+// attachment blocks that would be permanently deleted by an overwrite. Returns
+// an empty string (no warning) when the document is clean or the fetch fails
+// (we never block the overwrite on a best-effort check).
+func warnOverwriteResourceBlocks(runtime *common.RuntimeContext) string {
+	args := map[string]interface{}{
+		"doc_id":           runtime.Str("doc"),
+		"skip_task_detail": true,
+	}
+	result, err := common.CallMCPTool(runtime, "fetch-doc", args)
+	if err != nil {
+		// Fetch failed — silently skip the guard rather than blocking overwrite.
+		return ""
+	}
+	md, _ := result["markdown"].(string)
+	if md == "" {
+		return ""
+	}
+	return checkOverwriteResourceBlocks(md)
+}
+
+// checkOverwriteResourceBlocks scans Markdown for resource block tags that
+// cannot survive an overwrite: <whiteboard …> and <file …>. Returns a
+// warning string listing the counts if any are found, empty string otherwise.
+func checkOverwriteResourceBlocks(markdown string) string {
+	var found []string
+	if n := strings.Count(markdown, "<whiteboard"); n > 0 {
+		if n == 1 {
+			found = append(found, "1 whiteboard block")
+		} else {
+			found = append(found, fmt.Sprintf("%d whiteboard blocks", n))
+		}
+	}
+	if n := strings.Count(markdown, "<file"); n > 0 {
+		if n == 1 {
+			found = append(found, "1 file attachment block")
+		} else {
+			found = append(found, fmt.Sprintf("%d file attachment blocks", n))
+		}
+	}
+	if len(found) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(
+		"the document contains %s that cannot be reconstructed from Markdown; "+
+			"overwrite will permanently delete them. "+
+			"Consider fetching a backup with `docs +fetch` before overwriting.",
+		strings.Join(found, " and "),
+	)
 }
