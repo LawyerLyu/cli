@@ -63,6 +63,9 @@ var VCMeetingEvents = common.Shortcut{
 		if err := validateMeetingEventsMeetingID(runtime.Str("meeting-id")); err != nil {
 			return err
 		}
+		if _, err := meetingEventsPageSize(runtime); err != nil {
+			return err
+		}
 		if _, _, err := parseMeetingEventsTimeRange(runtime); err != nil {
 			return err
 		}

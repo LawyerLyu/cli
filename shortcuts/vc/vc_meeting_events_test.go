@@ -5,14 +5,17 @@ package vc
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/shortcuts/common"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 )
 
 func newMeetingEventsRuntime() *common.RuntimeContext {
@@ -24,6 +27,13 @@ func newMeetingEventsRuntime() *common.RuntimeContext {
 	cmd.Flags().String("page-size", "", "")
 	cmd.Flags().Bool("page-all", false, "")
 	return common.TestNewRuntimeContext(cmd, defaultConfig())
+}
+
+func mustSetMeetingEventsFlag(t *testing.T, runtime *common.RuntimeContext, name, value string) {
+	t.Helper()
+	if err := runtime.Cmd.Flags().Set(name, value); err != nil {
+		t.Fatalf("Flags().Set(%q, %q) error = %v", name, value, err)
+	}
 }
 
 func meetingEventsStub(events []interface{}, hasMore bool, pageToken string) *httpmock.Stub {
@@ -240,7 +250,7 @@ func TestParticipantJoinedSummary_MultipleItems(t *testing.T) {
 
 func TestMeetingEvents_Validation_InvalidMeetingID(t *testing.T) {
 	runtime := newMeetingEventsRuntime()
-	_ = runtime.Cmd.Flags().Set("meeting-id", "not-a-number")
+	mustSetMeetingEventsFlag(t, runtime, "meeting-id", "not-a-number")
 
 	err := VCMeetingEvents.Validate(context.Background(), runtime)
 	if err == nil {
@@ -253,9 +263,9 @@ func TestMeetingEvents_Validation_InvalidMeetingID(t *testing.T) {
 
 func TestMeetingEvents_Validation_InvalidTimeRange(t *testing.T) {
 	runtime := newMeetingEventsRuntime()
-	_ = runtime.Cmd.Flags().Set("meeting-id", "7628568141510692381")
-	_ = runtime.Cmd.Flags().Set("start", "200")
-	_ = runtime.Cmd.Flags().Set("end", "100")
+	mustSetMeetingEventsFlag(t, runtime, "meeting-id", "7628568141510692381")
+	mustSetMeetingEventsFlag(t, runtime, "start", "200")
+	mustSetMeetingEventsFlag(t, runtime, "end", "100")
 
 	err := VCMeetingEvents.Validate(context.Background(), runtime)
 	if err == nil {
@@ -268,8 +278,8 @@ func TestMeetingEvents_Validation_InvalidTimeRange(t *testing.T) {
 
 func TestMeetingEvents_Validation_PageSizeBelowMinDoesNotError(t *testing.T) {
 	runtime := newMeetingEventsRuntime()
-	_ = runtime.Cmd.Flags().Set("meeting-id", "7628568141510692381")
-	_ = runtime.Cmd.Flags().Set("page-size", "10")
+	mustSetMeetingEventsFlag(t, runtime, "meeting-id", "7628568141510692381")
+	mustSetMeetingEventsFlag(t, runtime, "page-size", "10")
 
 	err := VCMeetingEvents.Validate(context.Background(), runtime)
 	if err != nil {
@@ -279,9 +289,9 @@ func TestMeetingEvents_Validation_PageSizeBelowMinDoesNotError(t *testing.T) {
 
 func TestMeetingEvents_Validation_PageAllIgnoresInvalidPageSize(t *testing.T) {
 	runtime := newMeetingEventsRuntime()
-	_ = runtime.Cmd.Flags().Set("meeting-id", "7628568141510692381")
-	_ = runtime.Cmd.Flags().Set("page-all", "true")
-	_ = runtime.Cmd.Flags().Set("page-size", "10")
+	mustSetMeetingEventsFlag(t, runtime, "meeting-id", "7628568141510692381")
+	mustSetMeetingEventsFlag(t, runtime, "page-all", "true")
+	mustSetMeetingEventsFlag(t, runtime, "page-size", "10")
 
 	err := VCMeetingEvents.Validate(context.Background(), runtime)
 	if err != nil {
@@ -289,11 +299,25 @@ func TestMeetingEvents_Validation_PageAllIgnoresInvalidPageSize(t *testing.T) {
 	}
 }
 
+func TestMeetingEvents_Validation_InvalidPageSizeReturnsFlagError(t *testing.T) {
+	runtime := newMeetingEventsRuntime()
+	mustSetMeetingEventsFlag(t, runtime, "meeting-id", "7628568141510692381")
+	mustSetMeetingEventsFlag(t, runtime, "page-size", "foo")
+
+	err := VCMeetingEvents.Validate(context.Background(), runtime)
+	if err == nil {
+		t.Fatal("expected validation error for non-integer page-size")
+	}
+	if !strings.Contains(err.Error(), "invalid --page-size") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestBuildMeetingEventsParams(t *testing.T) {
 	runtime := newMeetingEventsRuntime()
-	_ = runtime.Cmd.Flags().Set("meeting-id", "7628568141510692381")
-	_ = runtime.Cmd.Flags().Set("page-size", "40")
-	_ = runtime.Cmd.Flags().Set("page-token", "1710000000000000000")
+	mustSetMeetingEventsFlag(t, runtime, "meeting-id", "7628568141510692381")
+	mustSetMeetingEventsFlag(t, runtime, "page-size", "40")
+	mustSetMeetingEventsFlag(t, runtime, "page-token", "1710000000000000000")
 
 	params, err := buildMeetingEventsParams(runtime, "1710000000", "1710003600")
 	if err != nil {
@@ -318,8 +342,8 @@ func TestBuildMeetingEventsParams(t *testing.T) {
 
 func TestBuildMeetingEventsParams_PageSizeBelowMinClampsToMin(t *testing.T) {
 	runtime := newMeetingEventsRuntime()
-	_ = runtime.Cmd.Flags().Set("meeting-id", "7628568141510692381")
-	_ = runtime.Cmd.Flags().Set("page-size", "10")
+	mustSetMeetingEventsFlag(t, runtime, "meeting-id", "7628568141510692381")
+	mustSetMeetingEventsFlag(t, runtime, "page-size", "10")
 
 	params, err := buildMeetingEventsParams(runtime, "", "")
 	if err != nil {
@@ -332,8 +356,8 @@ func TestBuildMeetingEventsParams_PageSizeBelowMinClampsToMin(t *testing.T) {
 
 func TestBuildMeetingEventsParams_PageSizeAboveMaxClampsToMax(t *testing.T) {
 	runtime := newMeetingEventsRuntime()
-	_ = runtime.Cmd.Flags().Set("meeting-id", "7628568141510692381")
-	_ = runtime.Cmd.Flags().Set("page-size", "999")
+	mustSetMeetingEventsFlag(t, runtime, "meeting-id", "7628568141510692381")
+	mustSetMeetingEventsFlag(t, runtime, "page-size", "999")
 
 	params, err := buildMeetingEventsParams(runtime, "", "")
 	if err != nil {
@@ -346,9 +370,9 @@ func TestBuildMeetingEventsParams_PageSizeAboveMaxClampsToMax(t *testing.T) {
 
 func TestBuildMeetingEventsParams_PageAllUsesMaxPageSize(t *testing.T) {
 	runtime := newMeetingEventsRuntime()
-	_ = runtime.Cmd.Flags().Set("meeting-id", "7628568141510692381")
-	_ = runtime.Cmd.Flags().Set("page-all", "true")
-	_ = runtime.Cmd.Flags().Set("page-size", "50")
+	mustSetMeetingEventsFlag(t, runtime, "meeting-id", "7628568141510692381")
+	mustSetMeetingEventsFlag(t, runtime, "page-all", "true")
+	mustSetMeetingEventsFlag(t, runtime, "page-size", "50")
 
 	params, err := buildMeetingEventsParams(runtime, "", "")
 	if err != nil {
@@ -575,5 +599,333 @@ func TestMeetingEvents_ExecuteEmpty(t *testing.T) {
 
 	if !strings.Contains(stdout.String(), "No meeting events.") {
 		t.Fatalf("unexpected output: %s", stdout.String())
+	}
+}
+
+func TestParseFlexibleTime(t *testing.T) {
+	t.Run("unix seconds", func(t *testing.T) {
+		got, ok := parseFlexibleTime("1776410100")
+		if !ok {
+			t.Fatal("parseFlexibleTime() ok = false, want true")
+		}
+		if want := time.Unix(1776410100, 0); !got.Equal(want) {
+			t.Fatalf("parseFlexibleTime() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("unix millis", func(t *testing.T) {
+		got, ok := parseFlexibleTime("1776408061000")
+		if !ok {
+			t.Fatal("parseFlexibleTime() ok = false, want true")
+		}
+		if want := time.UnixMilli(1776408061000); !got.Equal(want) {
+			t.Fatalf("parseFlexibleTime() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("rfc3339", func(t *testing.T) {
+		got, ok := parseFlexibleTime("2026-04-17T08:00:00Z")
+		if !ok {
+			t.Fatal("parseFlexibleTime() ok = false, want true")
+		}
+		if want, _ := time.Parse(time.RFC3339, "2026-04-17T08:00:00Z"); !got.Equal(want) {
+			t.Fatalf("parseFlexibleTime() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		if _, ok := parseFlexibleTime("not-a-time"); ok {
+			t.Fatal("parseFlexibleTime() ok = true, want false")
+		}
+	})
+}
+
+func TestFormatMeetingWindow(t *testing.T) {
+	start := time.Unix(1776410100, 0)
+	end := time.Unix(1776413700, 0)
+
+	tests := []struct {
+		name     string
+		start    time.Time
+		hasStart bool
+		end      time.Time
+		hasEnd   bool
+		want     string
+	}{
+		{
+			name:     "ongoing",
+			start:    start,
+			hasStart: true,
+			end:      start,
+			hasEnd:   true,
+			want:     "2026-04-17 15:15:00（进行中）",
+		},
+		{
+			name:     "finished range",
+			start:    start,
+			hasStart: true,
+			end:      end,
+			hasEnd:   true,
+			want:     "2026-04-17 15:15:00 - 2026-04-17 16:15:00",
+		},
+		{
+			name:     "only start",
+			start:    start,
+			hasStart: true,
+			want:     "2026-04-17 15:15:00",
+		},
+		{
+			name:   "only end",
+			end:    end,
+			hasEnd: true,
+			want:   "2026-04-17 16:15:00",
+		},
+		{
+			name: "empty",
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatMeetingWindow(tt.start, tt.hasStart, tt.end, tt.hasEnd); got != tt.want {
+				t.Fatalf("formatMeetingWindow() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatTimelineOffset(t *testing.T) {
+	start := time.Unix(1776410100, 0)
+	later := start.Add(90 * time.Second)
+	earlier := start.Add(-5 * time.Minute)
+
+	tests := []struct {
+		name            string
+		when            time.Time
+		hasWhen         bool
+		meetingStart    time.Time
+		hasMeetingStart bool
+		want            string
+	}{
+		{
+			name:            "with meeting start",
+			when:            later,
+			hasWhen:         true,
+			meetingStart:    start,
+			hasMeetingStart: true,
+			want:            "00:01:30",
+		},
+		{
+			name:            "negative diff clamps to zero",
+			when:            earlier,
+			hasWhen:         true,
+			meetingStart:    start,
+			hasMeetingStart: true,
+			want:            "00:00:00",
+		},
+		{
+			name:    "without meeting start uses wall clock",
+			when:    later,
+			hasWhen: true,
+			want:    "15:16:30",
+		},
+		{
+			name: "missing when",
+			want: "??:??:??",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatTimelineOffset(tt.when, tt.hasWhen, tt.meetingStart, tt.hasMeetingStart); got != tt.want {
+				t.Fatalf("formatTimelineOffset() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFlattenQueryParams(t *testing.T) {
+	params := larkcore.QueryParams{
+		"one":   []string{"1"},
+		"many":  []string{"2", "3"},
+		"empty": []string{},
+	}
+
+	got := flattenQueryParams(params)
+	want := map[string]interface{}{
+		"one":  "1",
+		"many": []string{"2", "3"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("flattenQueryParams() = %#v, want %#v", got, want)
+	}
+}
+
+func TestCompactMeetingPayload_DropsOnlyEmptySlices(t *testing.T) {
+	got := compactMeetingPayload(map[string]interface{}{
+		"empty_items": []interface{}{},
+		"items":       []interface{}{"x"},
+		"zero":        0,
+		"text":        "ok",
+	})
+
+	if _, ok := got["empty_items"]; ok {
+		t.Fatalf("compactMeetingPayload() should drop empty_items: %#v", got)
+	}
+	if !reflect.DeepEqual(got["items"], []interface{}{"x"}) {
+		t.Fatalf("compactMeetingPayload() items = %#v, want %#v", got["items"], []interface{}{"x"})
+	}
+	if got["zero"] != 0 || got["text"] != "ok" {
+		t.Fatalf("compactMeetingPayload() preserved fields mismatch: %#v", got)
+	}
+}
+
+func TestCompactMeetingEvents_IgnoresNonMapsAndCompactsPayload(t *testing.T) {
+	got := compactMeetingEvents([]interface{}{
+		"skip-me",
+		map[string]interface{}{
+			"event_type": "chat_received",
+			"payload": map[string]interface{}{
+				"chat_received_items": []interface{}{"x"},
+				"empty_items":         []interface{}{},
+			},
+		},
+	})
+
+	if len(got) != 1 {
+		t.Fatalf("len(compactMeetingEvents()) = %d, want 1", len(got))
+	}
+	event, _ := got[0].(map[string]interface{})
+	payload := common.GetMap(event, "payload")
+	if _, ok := payload["empty_items"]; ok {
+		t.Fatalf("compactMeetingEvents() should prune empty payload slices: %#v", payload)
+	}
+}
+
+func TestVCShortcuts_RegistersMeetingAgentCommands(t *testing.T) {
+	got := Shortcuts()
+	var commands []string
+	for _, shortcut := range got {
+		commands = append(commands, shortcut.Command)
+	}
+	want := []string{"+search", "+notes", "+recording", "+meeting-join", "+meeting-leave", "+meeting-events"}
+	if !reflect.DeepEqual(commands, want) {
+		t.Fatalf("shortcut commands = %#v, want %#v", commands, want)
+	}
+}
+
+func TestLeaveAction(t *testing.T) {
+	tests := []struct {
+		name string
+		item map[string]interface{}
+		want string
+	}{
+		{name: "meeting ended", item: map[string]interface{}{"leave_reason": 2}, want: "因会议结束离开了会议"},
+		{name: "kicked", item: map[string]interface{}{"leave_reason": 3}, want: "被移出了会议"},
+		{name: "default", item: map[string]interface{}{"leave_reason": 1}, want: "离开了会议"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := leaveAction(tt.item); got != tt.want {
+				t.Fatalf("leaveAction() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMeetingEventUserWithID(t *testing.T) {
+	tests := []struct {
+		name string
+		user map[string]interface{}
+		want string
+	}{
+		{name: "nil", want: ""},
+		{name: "name and id", user: map[string]interface{}{"user_name": "Alice", "id": "u1"}, want: "Alice(u1)"},
+		{name: "name only", user: map[string]interface{}{"user_name": "Alice"}, want: "Alice"},
+		{name: "id only", user: map[string]interface{}{"id": "u1"}, want: "u1"},
+		{name: "empty", user: map[string]interface{}{}, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := meetingEventUserWithID(tt.user); got != tt.want {
+				t.Fatalf("meetingEventUserWithID() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMeetingEventSummary(t *testing.T) {
+	tests := []struct {
+		name  string
+		event map[string]interface{}
+		want  string
+	}{
+		{
+			name: "participant joined count",
+			event: map[string]interface{}{
+				"event_type": "participant_joined",
+				"payload": map[string]interface{}{
+					"participant_joined_items": []interface{}{
+						map[string]interface{}{},
+						map[string]interface{}{},
+					},
+				},
+			},
+			want: "2 participants joined",
+		},
+		{
+			name: "participant left with label",
+			event: map[string]interface{}{
+				"event_type": "participant_left",
+				"payload": map[string]interface{}{
+					"participant_left_items": []interface{}{
+						map[string]interface{}{"participant": map[string]interface{}{"user_name": "Bob", "id": "u2"}},
+					},
+				},
+			},
+			want: "participant u2 (Bob) left",
+		},
+		{
+			name: "fallback unknown event",
+			event: map[string]interface{}{
+				"event_type": "mystery_event",
+				"payload":    map[string]interface{}{},
+			},
+			want: "mystery_event",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := meetingEventSummary(tt.event); got != tt.want {
+				t.Fatalf("meetingEventSummary() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEscapePrettyText(t *testing.T) {
+	got := escapePrettyText("line1\nline2\t\r" + string(rune(0x07)))
+	want := `line1\nline2\t\r\u0007`
+	if got != want {
+		t.Fatalf("escapePrettyText() = %q, want %q", got, want)
+	}
+}
+
+func TestNeedsColon(t *testing.T) {
+	tests := []struct {
+		description string
+		want        bool
+	}{
+		{description: "发送了消息", want: false},
+		{description: "加入了会议", want: false},
+		{description: "离开了会议", want: false},
+		{description: "开始共享「文档」", want: false},
+		{description: "[text] hello", want: true},
+	}
+	for _, tt := range tests {
+		if got := needsColon(tt.description); got != tt.want {
+			t.Fatalf("needsColon(%q) = %v, want %v", tt.description, got, tt.want)
+		}
 	}
 }
