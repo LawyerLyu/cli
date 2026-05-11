@@ -52,7 +52,7 @@ lark-cli vc +meeting-events --meeting-id 69xxxxxxxxxxxxx28 --dry-run
 ### 2. 仅支持 user 身份
 
 该命令仅支持 `user` 身份，使用前需完成 `lark-cli auth login`。
-若提示 `missing required scope(s)` / `permission_violations`，先提示用户当前账号可能尚未开通智能体参会灰度，加入早鸟群申请：https://go.larkoffice.com/join-chat/2f4nb0e1-fe00-4f67-bed7-25beaf533fbd；同时再按 CLI hint 引导用户执行 `lark-cli auth login --scope "vc:meeting.meetingevent:read"`。
+若提示 `missing required scope(s)` / `permission_violations`，先提示用户智能体参会能力还可能受灰度资格限制，建议先加入早鸟群申请：https://go.larkoffice.com/join-chat/2f4nb0e1-fe00-4f67-bed7-25beaf533fbd；同时再按 CLI hint 引导用户执行 `lark-cli auth login --scope "vc:meeting.meetingevent:read"`。
 
 若 CLI stderr JSON 返回 `error.code=20017` / `ErrNotInGray`，说明当前用户未命中智能体参会灰度。提示用户加入早鸟群：https://go.larkoffice.com/join-chat/2f4nb0e1-fe00-4f67-bed7-25beaf533fbd。暂不展示使用手册。
 
@@ -229,7 +229,7 @@ lark-cli vc +meeting-events \
 | `20002 meeting not exist` | `meeting_id` 错误，或会议实例当前已不可获取（常见于把 9 位会议号当 meeting_id 传） | 确认传入的是长数字 `meeting_id`，不是 9 位会议号 |
 | `HTTP 404` / `HTTP 500` | 服务端当前无法找到或处理该会议实例 | 换一个正在进行且 bot 可见的 meeting_id，或排查后端问题 |
 | `error.code=20017` / `ErrNotInGray` | 当前用户未命中智能体参会灰度 | 提示用户加入早鸟群：https://go.larkoffice.com/join-chat/2f4nb0e1-fe00-4f67-bed7-25beaf533fbd |
-| `missing required scope(s)` / `permission_violations` | 未授权 `vc:meeting.meetingevent:read` | 先提示用户加入早鸟群申请智能体参会灰度：https://go.larkoffice.com/join-chat/2f4nb0e1-fe00-4f67-bed7-25beaf533fbd；同时再按 CLI hint 重新 `auth login --scope vc:meeting.meetingevent:read` 补 scope |
+| `missing required scope(s)` / `permission_violations` | 未授权 `vc:meeting.meetingevent:read` | 先提示该能力还可能受灰度资格限制，建议加入早鸟群申请；同时再按 CLI hint 重新 `auth login --scope vc:meeting.meetingevent:read` 补 scope |
 
 ## 提示
 
