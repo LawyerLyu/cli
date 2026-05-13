@@ -175,3 +175,20 @@ func TestConfigPolicyValidate_MissingFileRejected(t *testing.T) {
 		t.Fatal("expected error for missing file, got nil")
 	}
 }
+
+// Regression: the parent `config` command declares a PersistentPreRunE
+// that calls RequireBuiltinCredentialProvider; env credentials cause
+// it to return external_provider. `config policy` is a diagnostic
+// group that must not be blocked by that check. The group declares
+// its own no-op PersistentPreRunE so cobra's "first walking up from
+// leaf" picks ours over the config parent's.
+func TestConfigPolicy_BypassesConfigParentPersistentPreRunE(t *testing.T) {
+	f, _, _ := newPolicyTestFactory()
+	group := NewCmdConfigPolicy(f)
+	if group.PersistentPreRunE == nil {
+		t.Fatal("config policy group must declare its own PersistentPreRunE to win over config parent")
+	}
+	if err := group.PersistentPreRunE(group, nil); err != nil {
+		t.Errorf("config policy PersistentPreRunE should be no-op, got %v", err)
+	}
+}

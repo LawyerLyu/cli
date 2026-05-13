@@ -26,6 +26,17 @@ func NewCmdConfigPolicy(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "policy",
 		Short: "Inspect and validate user-layer command policy",
+		// The parent `config` group has a PersistentPreRunE that calls
+		// RequireBuiltinCredentialProvider, which returns external_provider
+		// when env credentials are set. `policy show` and `policy validate`
+		// are READ-ONLY diagnostic commands and do not modify credentials,
+		// so they must work regardless of which credential provider is
+		// active. A leaf-level no-op PersistentPreRunE wins under cobra's
+		// "first walking up" rule and bypasses the parent check.
+		PersistentPreRunE: func(c *cobra.Command, _ []string) error {
+			c.SilenceUsage = true
+			return nil
+		},
 	}
 	cmd.AddCommand(newCmdConfigPolicyShow(f))
 	cmd.AddCommand(newCmdConfigPolicyValidate(f))
