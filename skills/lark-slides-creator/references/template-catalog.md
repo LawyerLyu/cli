@@ -10,26 +10,26 @@
 
 ## 使用方法
 
-1. 先运行 `python3 skills/lark-slides/scripts/template_tool.py search --query "<主题>" --limit 3`，根据用户描述的 **场景、风格、色调** 做初筛
+1. 先运行 `python3 skills/lark-slides-creator/scripts/template_tool.py search --query "<主题>" --limit 3`，根据用户描述的 **场景、风格、色调** 做初筛
 2. 整理出 **2-3 个**最匹配的用户可选模板候选；优先选场景强相关模板，没有明显场景模板时再用标 ⭐ 的通用模板兜底
 3. 用户选定后，再锁定 **1-2 个**最匹配的模板作为实际参考
 4. 先看模板下方的 **页型索引**，锁定你真正需要的页型：封面 / 目录 / 分节 / 内容 / 结尾
 5. 优先运行 `template_tool.py summarize` 查看 `<theme>` / 页型摘要；只有需要具体布局骨架时，再运行 `template_tool.py extract`
 6. 从模板中提取并复用：`<theme>` 配色、页面流、shape 排列布局、装饰元素风格
 7. 将用户的实际内容填充到模板的结构框架中，**不要照搬模板的占位文字**
-8. 创建前运行 `layout_lint.py --input <file>`；它检查 XML well-formed 和布局风险，不等价于完整 XSD schema 校验
+8. 创建前运行 `python3 skills/lark-slides/scripts/layout_lint.py --input <file>`；它检查 XML well-formed 和布局风险，不等价于完整 XSD schema 校验
 
 ### 脚本快捷命令
 
 ```bash
 # 先找候选模板
-python3 skills/lark-slides/scripts/template_tool.py search --query "工作汇报" --tone light --limit 3
+python3 skills/lark-slides-creator/scripts/template_tool.py search --query "工作汇报" --tone light --limit 3
 
 # 看指定页型的紧凑摘要
-python3 skills/lark-slides/scripts/template_tool.py summarize --template office--work_report --label 内容
+python3 skills/lark-slides-creator/scripts/template_tool.py summarize --template office--work_report --label 内容
 
 # 只裁切目标页型，避免把整份 XML 拉进上下文
-python3 skills/lark-slides/scripts/template_tool.py extract --template office--work_report --label 封面 --out /tmp/work-report-cover.xml
+python3 skills/lark-slides-creator/scripts/template_tool.py extract --template office--work_report --label 封面 --out /tmp/work-report-cover.xml
 ```
 
 如果脚本路径不可用，按这个顺序手动降级：

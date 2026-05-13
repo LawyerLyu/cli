@@ -6,14 +6,14 @@
 
 [中文版](./README.zh.md) | [English](./README.md)
 
-The official [Lark/Feishu](https://www.larksuite.com/) CLI tool, maintained by the [larksuite](https://github.com/larksuite) team — built for humans and AI Agents. Covers core business domains including Messenger, Docs, Base, Sheets, Slides, Calendar, Mail, Tasks, Meetings, Markdown, and more, with 200+ commands and 24 AI Agent [Skills](./skills/).
+The official [Lark/Feishu](https://www.larksuite.com/) CLI tool, maintained by the [larksuite](https://github.com/larksuite) team — built for humans and AI Agents. Covers core business domains including Messenger, Docs, Base, Sheets, Slides, Calendar, Mail, Tasks, Meetings, Markdown, and more, with 200+ commands and 25 AI Agent [Skills](./skills/).
 
 [Install](#installation--quick-start) · [AI Agent Skills](#agent-skills) · [Auth](#authentication) · [Commands](#three-layer-command-system) · [Advanced](#advanced-usage) · [Security](#security--risk-warnings-read-before-use) · [Contributing](#contributing)
 
 ## Why lark-cli?
 
-- **Agent-Native Design** — 24 structured [Skills](./skills/) out of the box, compatible with popular AI tools — Agents can operate Lark with zero extra setup
-- **Wide Coverage** — 17 business domains, 200+ curated commands, 24 AI Agent [Skills](./skills/)
+- **Agent-Native Design** — 25 structured [Skills](./skills/) out of the box, compatible with popular AI tools — Agents can operate Lark with zero extra setup
+- **Wide Coverage** — 17 business domains, 200+ curated commands, 25 AI Agent [Skills](./skills/)
 - **AI-Friendly & Optimized** — Every command is tested with real Agents, featuring concise parameters, smart defaults, and structured output to maximize Agent call success rates
 - **Open Source, Zero Barriers** — MIT license, ready to use, just `npm install`
 - **Up and Running in 3 Minutes** — One-click app creation, interactive login, from install to first API call in just 3 steps
@@ -142,7 +142,8 @@ lark-cli auth status
 | `lark-drive`                    | Upload, download files, manage permissions & comments                                                          |
 | `lark-markdown`                 | Create, fetch, and overwrite Drive-native Markdown files                                                       |
 | `lark-sheets`                   | Create, read, write, append, find, export spreadsheets                                                         |
-| `lark-slides`                   | Create and manage presentations, read presentation content, and add or remove slides                          |
+| `lark-slides-creator`           | Create polished presentations with planning, design, asset, template, and validation workflows                |
+| `lark-slides`                   | Low-level Slides XML/API read/write operations                                                               |
 | `lark-base`                     | Tables, fields, records, views, dashboards, data aggregation & analytics                                       |
 | `lark-task`                     | Tasks, task lists, subtasks, reminders, member assignment                                                      |
 | `lark-mail`                     | Browse, search, read emails, send, reply, forward, draft management, watch new mail                            |
