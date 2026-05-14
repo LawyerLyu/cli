@@ -468,10 +468,10 @@ func TestCheckV2MarkdownCustomTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := CheckV2MarkdownCustomTags(tt.content)
+			got := checkV2MarkdownCustomTags(tt.content)
 			hasHint := got != ""
 			if hasHint != tt.wantHint {
-				t.Fatalf("CheckV2MarkdownCustomTags(%q) = %q, wantHint=%v", tt.content, got, tt.wantHint)
+				t.Fatalf("checkV2MarkdownCustomTags(%q) = %q, wantHint=%v", tt.content, got, tt.wantHint)
 			}
 			if tt.wantTag != "" && !strings.Contains(got, tt.wantTag) {
 				t.Fatalf("expected message to contain %q, got: %q", tt.wantTag, got)

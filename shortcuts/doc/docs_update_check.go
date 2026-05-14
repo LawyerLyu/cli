@@ -4,6 +4,7 @@
 package doc
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -288,37 +289,56 @@ func leadingRun(s string, c byte) string {
 	return s[:i]
 }
 
-// wholeParagraphStyleRe matches a line whose entire content is a single
-// emphasis span: *…* or **…** (at least one non-whitespace char inside).
-// CJK and ASCII content both match; we deliberately do NOT match ***…***
-// because that is already covered by checkDocsUpdateBoldItalic.
 // wholeParagraphStyleRe matches a line whose entire content is exactly one
-// *italic* or **bold** span. Requirements: opener and closer must be the same
-// number of asterisks (1 or 2), content has no * or newline, and at least one
-// non-whitespace non-asterisk character is present (prevents `*   *` matches).
+// *italic* or **bold** span (asterisk style only). Requirements: opener and
+// closer must be the same number of asterisks (1 or 2), content has no * or
+// newline, and at least one non-whitespace non-asterisk character is present
+// (prevents `*   *` matches). ***…*** is deliberately excluded because that
+// shape is already covered by checkDocsUpdateBoldItalic.
+//
+// Note: underscore-style emphasis (_italic_ / __bold__) is not matched here.
+// Lark's markdown parser does render underscore emphasis correctly in
+// whole-paragraph lines, so the warning does not apply to them.
+//
+// Note: 4-space indented code blocks are not stripped before this check.
+// stripMarkdownCodeRegions only handles fenced code blocks (``` / ~~~) and
+// inline code spans. A line like "    *italic*" (indented as a code block per
+// CommonMark) could in theory produce a false positive, but such indentation
+// is rare in the AI-generated content this check targets and the impact is low.
 var wholeParagraphStyleRe = regexp.MustCompile(
 	`^(?:\*[^*\n]*[^\s*\n][^*\n]*\*|\*\*[^*\n]*[^\s*\n][^*\n]*\*\*)$`,
 )
 
-// checkDocsUpdateWholeParagraphStyle warns when a markdown paragraph
+// checkDocsUpdateWholeParagraphStyle warns when any markdown paragraph
 // consists entirely of *italic* or **bold** markers. Lark's markdown
 // parser treats such lines as literal strings (the markers appear verbatim)
 // rather than styled paragraphs. This is distinct from inline emphasis
 // embedded in mixed-content lines, which Lark handles correctly.
+//
+// All matching line numbers are collected and reported together so the user
+// can see the full extent of the issue in one pass.
 func checkDocsUpdateWholeParagraphStyle(markdown string) string {
 	if markdown == "" {
 		return ""
 	}
 	sanitized := stripMarkdownCodeRegions(markdown)
-	for _, line := range strings.Split(sanitized, "\n") {
+	var matchLines []int
+	for i, line := range strings.Split(sanitized, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if wholeParagraphStyleRe.MatchString(trimmed) {
-			return "line consisting entirely of *…* or **…** markers will not be rendered as italic/bold by Lark; " +
-				"the markers appear as literal characters. " +
-				"Mix the styled text with surrounding prose, or use Lark XML: <em>…</em> / <b>…</b>."
+			matchLines = append(matchLines, i+1)
 		}
 	}
-	return ""
+	if len(matchLines) == 0 {
+		return ""
+	}
+	noun := "line"
+	if len(matchLines) > 1 {
+		noun = fmt.Sprintf("%d lines", len(matchLines))
+	}
+	return noun + " consisting entirely of *…* or **…** markers will not be rendered as italic/bold by Lark; " +
+		"the markers appear as literal characters. " +
+		"Mix the styled text with surrounding prose, or switch to --doc-format xml."
 }
 
 // v2MarkdownUnsupportedTags lists Lark custom XML tags that the v2
@@ -337,11 +357,11 @@ var v2MarkdownUnsupportedTags = []struct {
 	{"<text colour=", "<text colour=...>"},
 }
 
-// CheckV2MarkdownCustomTags returns a non-empty error message when content
+// checkV2MarkdownCustomTags returns a non-empty error message when content
 // contains Lark custom tags that the v2 markdown parser silently corrupts.
 // Callers in Validate should return this as an error; callers in DryRun
 // may choose to surface it as a warning instead.
-func CheckV2MarkdownCustomTags(content string) string {
+func checkV2MarkdownCustomTags(content string) string {
 	if content == "" {
 		return ""
 	}
