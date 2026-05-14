@@ -299,8 +299,10 @@ func CheckV2XMLBareAmpersand(content string) string {
 	if content == "" || !strings.Contains(content, "&") {
 		return ""
 	}
-	// Replace every valid entity with its same-length placeholder so positional
-	// byte offsets are preserved (not required here, but avoids false positives).
+	// Replace every valid entity reference with a fixed placeholder so that
+	// the subsequent Contains check only fires on truly bare ampersands.
+	// ("ENTITY" is not the same length as each entity; byte offsets are not
+	// preserved, but that is fine — we only need a yes/no bare-& answer.)
 	stripped := xmlEntityRe.ReplaceAllString(content, "ENTITY")
 	if !strings.Contains(stripped, "&") {
 		return ""
@@ -316,13 +318,12 @@ func CheckV2XMLBareAmpersand(content string) string {
 var quoteContainerTagRe = regexp.MustCompile(`<quote-container(?:\s|>|/)`)
 
 // columnIntWidthRe matches a <column … width="N" …> attribute where N is a
-// plain integer. The pattern requires whitespace before "width" to avoid
-// matching unrelated attributes such as data-width, and accepts optional
-// whitespace around "=" and either single or double quotes, so forms like
-// width='50' or width = "50" are also detected. Go's RE2 engine does not
-// support backreferences, so mismatched quote pairs (e.g. width="50') are
-// also matched — that is acceptable for a non-blocking warning.
-var columnIntWidthRe = regexp.MustCompile(`<column\b[^>]*\swidth\s*=\s*['"]?\d+['"]?`)
+// plain integer (not a float). The pattern requires:
+//   - whitespace before "width" to exclude attributes like data-width
+//   - the value to be enclosed in quotes with digits immediately before the
+//     closing quote, so width="0.5" does NOT match (the dot prevents \d+
+//     from consuming the full value up to the quote).
+var columnIntWidthRe = regexp.MustCompile(`<column\b[^>]*\swidth\s*=\s*["']\d+["']`)
 
 // CheckV2XMLWarnings returns a list of non-fatal warnings for v2 XML content.
 // These describe constructs that are silently dropped or ignored by the v2 API

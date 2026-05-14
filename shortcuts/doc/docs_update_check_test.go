@@ -394,6 +394,8 @@ func TestCheckV2XMLBareAmpersand(t *testing.T) {
 		{name: "bare ampersand flagged", content: "a & b", wantErr: true},
 		{name: "bare ampersand in tag flagged", content: `<text color="blue">R&D</text>`, wantErr: true},
 		{name: "unknown entity flagged", content: "&nbsp;", wantErr: true},
+		// mixed: valid entity alongside a bare & — the bare one must still be caught
+		{name: "valid entity mixed with bare ampersand flagged", content: "a &amp; b & c", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -463,6 +465,12 @@ func TestCheckV2XMLWarnings(t *testing.T) {
 			content: `<grid><column width = "40"/></grid>`,
 			wantLen: 1,
 		},
+		// float value must NOT trigger warning — width="0.5" is valid width-ratio syntax
+		{
+			name:    "column float width value is not flagged",
+			content: `<grid><column width="0.5"><p>A</p></column></grid>`,
+			wantLen: 0,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -476,22 +484,10 @@ func TestCheckV2XMLWarnings(t *testing.T) {
 				combined += w
 			}
 			for _, sub := range tt.wantContains {
-				if !containsStr(combined, sub) {
+				if !strings.Contains(combined, sub) {
 					t.Errorf("expected warning to contain %q, got: %s", sub, combined)
 				}
 			}
 		})
 	}
-}
-
-func containsStr(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
-		func() bool {
-			for i := 0; i+len(sub) <= len(s); i++ {
-				if s[i:i+len(sub)] == sub {
-					return true
-				}
-			}
-			return false
-		}())
 }
