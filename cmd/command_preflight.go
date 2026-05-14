@@ -24,12 +24,10 @@ func validateCommandInvocation(root *cobra.Command, args []string) error {
 	}
 
 	// Traverse can still fail for ordinary Cobra errors (for example unknown
-	// flags). Leave those on the normal Execute path so this preflight only
-	// replaces silent parent-help fallbacks with structured validation errors.
-	cmd, remaining, err := root.Traverse(args)
-	if err != nil {
-		return nil //nolint:nilerr // defer to RootCmd.Execute* for normal Cobra errors
-	}
+	// flags). Discard that error here and leave it on the normal Execute path
+	// so this preflight only replaces silent parent-help fallbacks with
+	// structured validation errors.
+	cmd, remaining, _ := root.Traverse(args)
 	if cmd == nil || len(remaining) == 0 {
 		return nil
 	}
