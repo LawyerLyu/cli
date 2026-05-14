@@ -6,6 +6,7 @@ package doc
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -208,14 +209,30 @@ func buildUpdateArgsV1(runtime *common.RuntimeContext) map[string]interface{} {
 	return args
 }
 
+// resourceBlockRe matches the opening of a <whiteboard …> or <file …> tag
+// (followed by whitespace, > or /) to avoid false positives on tag names like
+// <file-view> or prose that merely mentions the word "whiteboard".
+var resourceBlockRe = regexp.MustCompile(`<(whiteboard|file)[\s/>]`)
+
 // warnOverwriteResourceBlocks pre-fetches the current document and returns a
 // non-empty warning string when the document contains whiteboard or file
 // attachment blocks that would be permanently deleted by an overwrite. Returns
 // an empty string (no warning) when the document is clean or the fetch fails
 // (we never block the overwrite on a best-effort check).
+//
+// This function is not unit-tested because it depends on an external MCP call
+// (fetch-doc). The pure detection logic lives in checkOverwriteResourceBlocks,
+// which has full table-driven coverage.
+//
+// Performance: this adds one extra fetch-doc round-trip to every --mode overwrite
+// call, even when the document has no resource blocks. The cost is intentional:
+// the guard is best-effort and silent on failure, so the latency is bounded and
+// the trade-off is acceptable to avoid silent data loss.
 func warnOverwriteResourceBlocks(runtime *common.RuntimeContext) string {
 	args := map[string]interface{}{
-		"doc_id":           runtime.Str("doc"),
+		"doc_id": runtime.Str("doc"),
+		// skip_task_detail reduces response payload by omitting per-block task
+		// metadata, making the pre-fetch faster and cheaper.
 		"skip_task_detail": true,
 	}
 	result, err := common.CallMCPTool(runtime, "fetch-doc", args)
@@ -231,20 +248,26 @@ func warnOverwriteResourceBlocks(runtime *common.RuntimeContext) string {
 // cannot survive an overwrite: <whiteboard …> and <file …>. Returns a
 // warning string listing the counts if any are found, empty string otherwise.
 func checkOverwriteResourceBlocks(markdown string) string {
-	var found []string
-	if n := strings.Count(markdown, "<whiteboard"); n > 0 {
-		if n == 1 {
-			found = append(found, "1 whiteboard block")
-		} else {
-			found = append(found, fmt.Sprintf("%d whiteboard blocks", n))
+	matches := resourceBlockRe.FindAllStringSubmatch(markdown, -1)
+	whiteboards, files := 0, 0
+	for _, m := range matches {
+		switch m[1] {
+		case "whiteboard":
+			whiteboards++
+		case "file":
+			files++
 		}
 	}
-	if n := strings.Count(markdown, "<file"); n > 0 {
-		if n == 1 {
-			found = append(found, "1 file attachment block")
-		} else {
-			found = append(found, fmt.Sprintf("%d file attachment blocks", n))
-		}
+	var found []string
+	if whiteboards == 1 {
+		found = append(found, "1 whiteboard block")
+	} else if whiteboards > 1 {
+		found = append(found, fmt.Sprintf("%d whiteboard blocks", whiteboards))
+	}
+	if files == 1 {
+		found = append(found, "1 file attachment block")
+	} else if files > 1 {
+		found = append(found, fmt.Sprintf("%d file attachment blocks", files))
 	}
 	if len(found) == 0 {
 		return ""
