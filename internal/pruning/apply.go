@@ -102,7 +102,7 @@ func installDenyStub(cmd *cobra.Command, path string, d policydecision.Denial) {
 	// Behaviour without this guard (pre-fix): a user yaml rule matching
 	// a strict-mode stub's path would replace the RunE with the pruning
 	// denyStub, hiding the original strict-mode error message AND
-	// re-labelling error.type from "strict_mode" to "pruning".
+	// re-labelling detail.layer from "strict_mode" to "pruning".
 	if cmd.Annotations != nil &&
 		cmd.Annotations[AnnotationDenialLayer] == policydecision.LayerStrictMode {
 		return
@@ -154,15 +154,13 @@ func installDenyStub(cmd *cobra.Command, path string, d policydecision.Denial) {
 			ReasonCode:   denial.ReasonCode,
 			Reason:       denial.Reason,
 		}
-		// Wrap in *output.ExitError so the cmd/root.go envelope writer
-		// emits a JSON envelope. error.type uses denial.Layer ("pruning"
-		// / "strict_mode") to match the design-doc contract. The detail
-		// map carries the closed-enum reason_code plus the structured
-		// fields agents read.
+		// error.type is the user-facing semantic ("a command was denied by
+		// policy"). detail.layer carries the implementation distinction
+		// ("pruning" vs "strict_mode") for debugging.
 		return &output.ExitError{
 			Code: output.ExitValidation,
 			Detail: &output.ErrDetail{
-				Type:    denial.Layer,
+				Type:    "command_denied",
 				Message: cd.Error(),
 				Detail: map[string]any{
 					"path":          cd.Path,

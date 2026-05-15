@@ -324,8 +324,9 @@ var stderr = func() interface{ Write(p []byte) (int, error) } {
 //
 // V1 contract: a denial is signalled by the cobra annotation
 // "lark:pruning_denied_layer" being set on the command. The layer
-// value is the error.type ("pruning" / "strict_mode"); the source
-// follows the annotation "lark:pruning_denied_source".
+// value is the enforcement layer ("pruning" / "strict_mode") that
+// gets emitted as detail.layer in the envelope; the source follows
+// the annotation "lark:pruning_denied_source".
 //
 // This indirection lets us avoid an import cycle between hook and
 // pruning packages.

@@ -50,7 +50,7 @@ For AI agents: this command blocks until the user completes authorization in the
 browser. Run it in the background and retrieve the verification URL from its output.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if mode := f.ResolveStrictMode(cmd.Context()); mode == core.StrictModeBot {
-				return output.ErrWithHint(output.ExitValidation, "strict_mode",
+				return output.ErrWithHint(output.ExitValidation, "command_denied",
 					fmt.Sprintf("strict mode is %q, user login is disabled in this profile", mode),
 					"if the user explicitly wants to switch to user identity, see `lark-cli config strict-mode --help` (confirm with the user before switching; switching does NOT require re-bind)")
 			}

@@ -353,7 +353,7 @@ func TestIntegration_StrictModeBot_ProfileOverride_DirectAuthLoginReturnsEnvelop
 	assertEnvelope(t, code, output.ExitValidation, stdout, stderr, output.ErrorEnvelope{
 		OK: false,
 		Error: &output.ErrDetail{
-			Type:    "strict_mode",
+			Type:    "command_denied",
 			Message: `strict mode is "bot", only bot-identity commands are available`,
 			Hint:    "if the user explicitly wants to switch policy, see `lark-cli config strict-mode --help` (confirm with the user before switching; switching does NOT require re-bind)",
 		},
@@ -371,7 +371,7 @@ func TestIntegration_StrictModeBot_ProfileOverride_DirectUserShortcutReturnsEnve
 	assertEnvelope(t, code, output.ExitValidation, stdout, stderr, output.ErrorEnvelope{
 		OK: false,
 		Error: &output.ErrDetail{
-			Type:    "strict_mode",
+			Type:    "command_denied",
 			Message: `strict mode is "bot", only bot-identity commands are available`,
 			Hint:    "if the user explicitly wants to switch policy, see `lark-cli config strict-mode --help` (confirm with the user before switching; switching does NOT require re-bind)",
 		},
@@ -409,7 +409,7 @@ func TestIntegration_StrictModeUser_ProfileOverride_ShortcutExplicitBotReturnsEn
 		OK:       false,
 		Identity: "bot",
 		Error: &output.ErrDetail{
-			Type:    "strict_mode",
+			Type:    "command_denied",
 			Message: `strict mode is "user", only user-identity commands are available`,
 			Hint:    "if the user explicitly wants to switch policy, see `lark-cli config strict-mode --help` (confirm with the user before switching; switching does NOT require re-bind)",
 		},
@@ -428,7 +428,7 @@ func TestIntegration_StrictModeBot_ProfileOverride_ServiceExplicitUserReturnsEnv
 		OK:       false,
 		Identity: "user",
 		Error: &output.ErrDetail{
-			Type:    "strict_mode",
+			Type:    "command_denied",
 			Message: `strict mode is "bot", only bot-identity commands are available`,
 			Hint:    "if the user explicitly wants to switch policy, see `lark-cli config strict-mode --help` (confirm with the user before switching; switching does NOT require re-bind)",
 		},
@@ -446,7 +446,7 @@ func TestIntegration_StrictModeUser_ProfileOverride_ServiceBotOnlyMethodReturnsE
 	assertEnvelope(t, code, output.ExitValidation, stdout, stderr, output.ErrorEnvelope{
 		OK: false,
 		Error: &output.ErrDetail{
-			Type:    "strict_mode",
+			Type:    "command_denied",
 			Message: `strict mode is "user", only user-identity commands are available`,
 			Hint:    "if the user explicitly wants to switch policy, see `lark-cli config strict-mode --help` (confirm with the user before switching; switching does NOT require re-bind)",
 		},
@@ -465,7 +465,7 @@ func TestIntegration_StrictModeBot_ProfileOverride_APIExplicitUserReturnsEnvelop
 		OK:       false,
 		Identity: "user",
 		Error: &output.ErrDetail{
-			Type:    "strict_mode",
+			Type:    "command_denied",
 			Message: `strict mode is "bot", only bot-identity commands are available`,
 			Hint:    "if the user explicitly wants to switch policy, see `lark-cli config strict-mode --help` (confirm with the user before switching; switching does NOT require re-bind)",
 		},

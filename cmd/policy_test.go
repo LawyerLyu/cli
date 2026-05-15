@@ -117,8 +117,8 @@ max_risk: write
 		t.Fatalf("+delete-doc RunE should return an error")
 	}
 	var exitErr *output.ExitError
-	if !errors.As(err, &exitErr) || exitErr.Detail == nil || exitErr.Detail.Type != "pruning" {
-		t.Fatalf("expected pruning ExitError, got %T %+v", err, err)
+	if !errors.As(err, &exitErr) || exitErr.Detail == nil || exitErr.Detail.Type != "command_denied" {
+		t.Fatalf("expected command_denied ExitError, got %T %+v", err, err)
 	}
 	detail, ok := exitErr.Detail.Detail.(map[string]any)
 	if !ok || detail["reason_code"] != "command_denylisted" {

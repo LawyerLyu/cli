@@ -180,8 +180,8 @@ func TestApply_runEReturnsExitErrorAndCommandDeniedError(t *testing.T) {
 	if exitErr.Detail == nil {
 		t.Fatalf("ExitError.Detail required for envelope to render")
 	}
-	if exitErr.Detail.Type != "pruning" {
-		t.Errorf("envelope error.type = %q, want pruning", exitErr.Detail.Type)
+	if exitErr.Detail.Type != "command_denied" {
+		t.Errorf("envelope error.type = %q, want command_denied", exitErr.Detail.Type)
 	}
 	// JSON envelope shape: detail.reason_code must be present and
 	// match the closed enum.
@@ -208,8 +208,8 @@ func TestApply_runEReturnsExitErrorAndCommandDeniedError(t *testing.T) {
 	// Envelope round-trip sanity (the actual JSON cmd/root.go would emit).
 	var buf strings.Builder
 	output.WriteErrorEnvelope(&buf, exitErr, "user")
-	if !strings.Contains(buf.String(), `"type": "pruning"`) {
-		t.Errorf("envelope JSON missing type=pruning, got:\n%s", buf.String())
+	if !strings.Contains(buf.String(), `"type": "command_denied"`) {
+		t.Errorf("envelope JSON missing type=command_denied, got:\n%s", buf.String())
 	}
 	if !strings.Contains(buf.String(), `"reason_code": "write_not_allowed"`) {
 		t.Errorf("envelope JSON missing reason_code, got:\n%s", buf.String())
