@@ -18,11 +18,11 @@ type fakeView struct {
 	identities []string
 }
 
-func (v fakeView) Path() string                            { return v.path }
-func (v fakeView) Domain() string                          { return v.domain }
-func (v fakeView) Risk() (string, bool)                    { return v.risk, v.riskOK }
-func (v fakeView) Identities() []string                    { return v.identities }
-func (v fakeView) Annotation(key string) (string, bool)    { return "", false }
+func (v fakeView) Path() string                         { return v.path }
+func (v fakeView) Domain() string                       { return v.domain }
+func (v fakeView) Risk() (string, bool)                 { return v.risk, v.riskOK }
+func (v fakeView) Identities() []string                 { return v.identities }
+func (v fakeView) Annotation(key string) (string, bool) { return "", false }
 
 func TestAll_None(t *testing.T) {
 	cmd := fakeView{}

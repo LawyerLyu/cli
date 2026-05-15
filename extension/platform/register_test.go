@@ -11,10 +11,10 @@ import (
 
 type stubPlugin struct{ name string }
 
-func (s stubPlugin) Name() string                      { return s.name }
-func (s stubPlugin) Version() string                   { return "0.0.1" }
+func (s stubPlugin) Name() string                        { return s.name }
+func (s stubPlugin) Version() string                     { return "0.0.1" }
 func (s stubPlugin) Capabilities() platform.Capabilities { return platform.Capabilities{} }
-func (s stubPlugin) Install(platform.Registrar) error  { return nil }
+func (s stubPlugin) Install(platform.Registrar) error    { return nil }
 
 // Tests should always reset the global registry to keep them
 // independent. Verifies the reset hook is functional.

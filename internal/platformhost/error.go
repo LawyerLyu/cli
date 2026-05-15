@@ -33,25 +33,25 @@ func (e *PluginInstallError) Unwrap() error { return e.Cause }
 // the design doc's hard-constraint #15 (reason_code enum closure) and
 // drives the JSON envelope's error.detail.reason_code field.
 const (
-	ReasonInvalidPluginName     = "invalid_plugin_name"
-	ReasonPluginNamePanic       = "plugin_name_panic"
-	ReasonInvalidHookName       = "invalid_hook_name"
-	ReasonDuplicateHookName     = "duplicate_hook_name"
-	ReasonInvalidHookRegister   = "invalid_hook_registration"
-	ReasonInvalidRule           = "invalid_rule"
-	ReasonDoubleRestrict        = "double_restrict"
-	ReasonRestrictsMismatch     = "restricts_mismatch"
-	ReasonCapabilityUnmet       = "capability_unmet"
-	ReasonCapabilitiesPanic     = "capabilities_panic"
+	ReasonInvalidPluginName   = "invalid_plugin_name"
+	ReasonPluginNamePanic     = "plugin_name_panic"
+	ReasonInvalidHookName     = "invalid_hook_name"
+	ReasonDuplicateHookName   = "duplicate_hook_name"
+	ReasonInvalidHookRegister = "invalid_hook_registration"
+	ReasonInvalidRule         = "invalid_rule"
+	ReasonDoubleRestrict      = "double_restrict"
+	ReasonRestrictsMismatch   = "restricts_mismatch"
+	ReasonCapabilityUnmet     = "capability_unmet"
+	ReasonCapabilitiesPanic   = "capabilities_panic"
 	// ReasonInvalidCapability flags a plugin authoring error in
 	// Capabilities() output -- e.g. a syntactically malformed
 	// RequiredCLIVersion string. This is distinct from
 	// ReasonCapabilityUnmet (legitimate version mismatch): an authoring
 	// bug must NOT be hidden by FailurePolicy=FailOpen, so this code is
 	// classified as untrusted-config and aborts unconditionally.
-	ReasonInvalidCapability     = "invalid_capability"
-	ReasonInstallFailed         = "install_failed"
-	ReasonInstallPanic          = "install_panic"
-	ReasonDuplicatePluginName   = "duplicate_plugin_name"
-	ReasonMultipleRestricts     = "multiple_restrict_plugins"
+	ReasonInvalidCapability   = "invalid_capability"
+	ReasonInstallFailed       = "install_failed"
+	ReasonInstallPanic        = "install_panic"
+	ReasonDuplicatePluginName = "duplicate_plugin_name"
+	ReasonMultipleRestricts   = "multiple_restrict_plugins"
 )

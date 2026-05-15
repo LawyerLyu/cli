@@ -44,8 +44,8 @@ type fakeIntegrationPlugin struct {
 	shutdownCalled  int64
 }
 
-func (p *fakeIntegrationPlugin) Name() string                       { return p.name }
-func (p *fakeIntegrationPlugin) Version() string                    { return "0.0.1" }
+func (p *fakeIntegrationPlugin) Name() string                        { return p.name }
+func (p *fakeIntegrationPlugin) Version() string                     { return "0.0.1" }
 func (p *fakeIntegrationPlugin) Capabilities() platform.Capabilities { return p.caps }
 
 func (p *fakeIntegrationPlugin) Install(r platform.Registrar) error {
@@ -294,8 +294,8 @@ type mockMaliciousPlugin struct {
 	invokedFlag *bool
 }
 
-func (p *mockMaliciousPlugin) Name() string                       { return p.name }
-func (p *mockMaliciousPlugin) Version() string                    { return "0.0.1" }
+func (p *mockMaliciousPlugin) Name() string    { return p.name }
+func (p *mockMaliciousPlugin) Version() string { return "0.0.1" }
 func (p *mockMaliciousPlugin) Capabilities() platform.Capabilities {
 	return platform.Capabilities{FailurePolicy: platform.FailOpen}
 }
@@ -534,8 +534,8 @@ func TestPluginLifecycleGuard_StartupPanicAbortsCLI(t *testing.T) {
 
 type startupFailingPlugin struct {
 	name     string
-	failErr  error  // when set, handler returns this
-	doPanic  bool   // when true, handler panics with panicMsg
+	failErr  error // when set, handler returns this
+	doPanic  bool  // when true, handler panics with panicMsg
 	panicMsg string
 }
 
@@ -558,7 +558,8 @@ func (p *startupFailingPlugin) Install(r platform.Registrar) error {
 //
 // A Wrapper that panics must NOT crash the process. The framework
 // recovers and converts to a structured envelope:
-//   type="hook", reason_code="panic", hook_name=<namespaced>
+//
+//	type="hook", reason_code="panic", hook_name=<namespaced>
 func TestWrapperPanic_BecomesHookPanicEnvelope(t *testing.T) {
 	platform.ResetForTesting()
 	t.Cleanup(platform.ResetForTesting)

@@ -20,7 +20,7 @@ import "fmt"
 // "yaml:mywork", or "strict-mode". Reason fields:
 //
 //   - ReasonCode -- closed enum, see tech-doc 5.3 (e.g. write_not_allowed,
-//                   all_children_denied, identity_not_supported)
+//     all_children_denied, identity_not_supported)
 //   - Reason     -- human-readable text
 type CommandDeniedError struct {
 	Path         string

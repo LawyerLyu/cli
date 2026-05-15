@@ -67,11 +67,11 @@ func TestInstallAll_happyPlugin(t *testing.T) {
 // trivial.
 type fakeView struct{}
 
-func (fakeView) Path() string                       { return "" }
-func (fakeView) Domain() string                     { return "" }
-func (fakeView) Risk() (string, bool)               { return "", false }
-func (fakeView) Identities() []string               { return nil }
-func (fakeView) Annotation(string) (string, bool)   { return "", false }
+func (fakeView) Path() string                     { return "" }
+func (fakeView) Domain() string                   { return "" }
+func (fakeView) Risk() (string, bool)             { return "", false }
+func (fakeView) Identities() []string             { return nil }
+func (fakeView) Annotation(string) (string, bool) { return "", false }
 
 // A FailClosed plugin whose Install returns an error must abort
 // InstallAll. Design hard-constraint #6.
@@ -144,7 +144,7 @@ func (misconfiguredRestrictPlugin) Name() string    { return "secaudit" }
 func (misconfiguredRestrictPlugin) Version() string { return "1.0.0" }
 func (misconfiguredRestrictPlugin) Capabilities() platform.Capabilities {
 	return platform.Capabilities{
-		Restricts:     true,           // policy plugin
+		Restricts:     true,              // policy plugin
 		FailurePolicy: platform.FailOpen, // contradicts safety contract
 	}
 }

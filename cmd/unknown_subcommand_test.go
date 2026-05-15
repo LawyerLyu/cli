@@ -175,4 +175,3 @@ func TestAvailableSubcommandNames_FiltersHelpAndCompletion(t *testing.T) {
 		}
 	}
 }
-

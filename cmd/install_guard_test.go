@@ -185,8 +185,8 @@ func TestNamespacedWrap_doesNotMutateSharedAbortError(t *testing.T) {
 // stubView for the wrap selector match.
 type stubView struct{}
 
-func (stubView) Path() string                            { return "x" }
-func (stubView) Domain() string                          { return "" }
-func (stubView) Risk() (string, bool)                    { return "", false }
-func (stubView) Identities() []string                    { return nil }
-func (stubView) Annotation(string) (string, bool)        { return "", false }
+func (stubView) Path() string                     { return "x" }
+func (stubView) Domain() string                   { return "" }
+func (stubView) Risk() (string, bool)             { return "", false }
+func (stubView) Identities() []string             { return nil }
+func (stubView) Annotation(string) (string, bool) { return "", false }

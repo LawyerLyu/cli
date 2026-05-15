@@ -28,11 +28,11 @@ type fakeView struct {
 	risk string
 }
 
-func (v fakeView) Path() string                         { return v.path }
-func (v fakeView) Domain() string                       { return "" }
-func (v fakeView) Risk() (string, bool)                 { return v.risk, v.risk != "" }
-func (v fakeView) Identities() []string                 { return nil }
-func (v fakeView) Annotation(string) (string, bool)     { return "", false }
+func (v fakeView) Path() string                     { return v.path }
+func (v fakeView) Domain() string                   { return "" }
+func (v fakeView) Risk() (string, bool)             { return v.risk, v.risk != "" }
+func (v fakeView) Identities() []string             { return nil }
+func (v fakeView) Annotation(string) (string, bool) { return "", false }
 
 func makeLeaf(use string) *cobra.Command {
 	return &cobra.Command{Use: use, RunE: func(*cobra.Command, []string) error { return nil }}
@@ -71,8 +71,8 @@ func TestInstall_observersBeforeAndAfterAlwaysRun(t *testing.T) {
 		t.Fatalf("expected RunE to return original error, got %v", err)
 	}
 
-	wantBefore := "before:err=<nil>"   // before fires with Err still nil
-	wantAfter := "after:err=boom"      // after sees the failed RunE error
+	wantBefore := "before:err=<nil>" // before fires with Err still nil
+	wantAfter := "after:err=boom"    // after sees the failed RunE error
 	if len(seen) != 2 || seen[0] != wantBefore || seen[1] != wantAfter {
 		t.Fatalf("observer ordering / Err propagation broken, got %v", seen)
 	}

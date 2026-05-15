@@ -36,10 +36,10 @@ type Invocation struct {
 	// the empty string when no strict-mode is active. We do not use
 	// a separate "resolved?" bool: the StrictMode() accessor returns
 	// ok=false when the lifecycle has not yet resolved this.
-	strictMode        string
-	strictModeKnown   bool
+	strictMode      string
+	strictModeKnown bool
 
-	identity        string
+	identity         string
 	identityResolved bool
 }
 

@@ -9,16 +9,16 @@
 // Three axes:
 //
 //   - Domain     - business domain ("im", "docs", "contact", ...). Inherited
-//                  from the nearest ancestor when not set on the command
-//                  itself. Stored on a new annotation key (the cmdutil
-//                  risk_level / supportedIdentities keys are left untouched
-//                  for backward compatibility).
+//     from the nearest ancestor when not set on the command
+//     itself. Stored on a new annotation key (the cmdutil
+//     risk_level / supportedIdentities keys are left untouched
+//     for backward compatibility).
 //   - Risk       - "read" | "write" | "high-risk-write". Inherited like
-//                  Domain. Reuses cmdutil.SetRisk / GetRisk under the hood.
+//     Domain. Reuses cmdutil.SetRisk / GetRisk under the hood.
 //   - Identities - allowed identity set. Child explicit override semantics:
-//                  the first ancestor (including self) with a non-nil set
-//                  wins. Reuses cmdutil.SetSupportedIdentities /
-//                  GetSupportedIdentities.
+//     the first ancestor (including self) with a non-nil set
+//     wins. Reuses cmdutil.SetSupportedIdentities /
+//     GetSupportedIdentities.
 //
 // Missing values are returned as the zero value with ok=false (where the
 // signature exposes it). Interpretation is up to the consumer: the pruning

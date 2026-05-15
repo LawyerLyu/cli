@@ -22,18 +22,18 @@ import (
 //
 //  1. cmd.Hidden = true                -- removes from help / completion
 //  2. cmd.DisableFlagParsing = true    -- denial-wins invariant; otherwise
-//                                         cobra would intercept the call
-//                                         with "missing required flag"
-//                                         before we can return our error
+//     cobra would intercept the call
+//     with "missing required flag"
+//     before we can return our error
 //  3. cmd.RunE = denyStub(denial)      -- returns *output.ExitError so
-//                                         cmd/root.go's envelope writer
-//                                         emits structured JSON (with
-//                                         error.type = denial.Layer and
-//                                         detail.reason_code = ReasonCode);
-//                                         the wrapped error chain still
-//                                         exposes *platform.CommandDeniedError
-//                                         via errors.As for in-process
-//                                         consumers
+//     cmd/root.go's envelope writer
+//     emits structured JSON (with
+//     error.type = denial.Layer and
+//     detail.reason_code = ReasonCode);
+//     the wrapped error chain still
+//     exposes *platform.CommandDeniedError
+//     via errors.As for in-process
+//     consumers
 //
 // Apply must be called once during the Bootstrap pipeline BEFORE
 // cobra.Execute. It mutates the command tree in place and is not safe to
