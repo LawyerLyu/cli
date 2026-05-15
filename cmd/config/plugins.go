@@ -25,8 +25,9 @@ import (
 // Rule.
 func NewCmdConfigPlugins(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "plugins",
-		Short: "Inspect installed plugins and their hook contributions",
+		Use:    "plugins",
+		Hidden: true, // diagnostic-only; kept callable, omitted from --help so it stays out of AI-agent context
+		Short:  "Inspect installed plugins and their hook contributions",
 		// Same leaf-level no-op as config policy: the parent `config`
 		// group's PersistentPreRunE requires builtin credential, but
 		// this is a read-only diagnostic that must work everywhere.

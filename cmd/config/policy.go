@@ -24,8 +24,9 @@ import (
 // integrations can parse the result.
 func NewCmdConfigPolicy(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "policy",
-		Short: "Inspect and validate user-layer command policy",
+		Use:    "policy",
+		Hidden: true, // diagnostic-only; kept callable, omitted from --help to reduce noise
+		Short:  "Inspect and validate user-layer command policy",
 		// The parent `config` group has a PersistentPreRunE that calls
 		// RequireBuiltinCredentialProvider, which returns external_provider
 		// when env credentials are set. `policy show` and `policy validate`
@@ -45,8 +46,9 @@ func NewCmdConfigPolicy(f *cmdutil.Factory) *cobra.Command {
 
 func newCmdConfigPolicyShow(f *cmdutil.Factory) *cobra.Command {
 	return &cobra.Command{
-		Use:   "show",
-		Short: "Show the active user-layer policy (Plugin.Restrict / yaml / none)",
+		Use:    "show",
+		Hidden: true, // diagnostic-only; kept callable, omitted from --help to reduce noise
+		Short:  "Show the active user-layer policy (Plugin.Restrict / yaml / none)",
 		Long: `Print the policy currently in effect after bootstrap, including:
 
   - source: "plugin:<name>" / "yaml" / "none"
@@ -106,9 +108,10 @@ func runConfigPolicyShow(f *cmdutil.Factory) error {
 
 func newCmdConfigPolicyValidate(f *cmdutil.Factory) *cobra.Command {
 	return &cobra.Command{
-		Use:   "validate <path>",
-		Short: "Validate a yaml policy file (parse + schema + glob checks) without applying it",
-		Args:  cobra.ExactArgs(1),
+		Use:    "validate <path>",
+		Hidden: true, // diagnostic-only; kept callable, omitted from --help to reduce noise
+		Short:  "Validate a yaml policy file (parse + schema + glob checks) without applying it",
+		Args:   cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runConfigPolicyValidate(f, args[0])
 		},
