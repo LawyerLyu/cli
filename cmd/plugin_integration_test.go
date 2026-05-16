@@ -18,7 +18,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/hook"
 	"github.com/larksuite/cli/internal/output"
-	"github.com/larksuite/cli/internal/platform"
+	internalplatform "github.com/larksuite/cli/internal/platform"
 )
 
 // These integration tests exercise the Hook framework's plumbing
@@ -231,9 +231,6 @@ func TestPluginPipeline_denialGuardIntegrated(t *testing.T) {
 	t.Cleanup(platform.ResetForTesting)
 
 	wrapCalled := false
-	type wrapPlugin struct{}
-	// We use an anonymous Plugin via fakeIntegrationPlugin to keep
-	// the test focused.
 	plugin := &fakeIntegrationPlugin{
 		name:            "policy-plugin",
 		caps:            platform.Capabilities{FailurePolicy: platform.FailOpen},

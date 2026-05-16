@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/extension/platform"
-	"github.com/larksuite/cli/internal/platform"
+	internalplatform "github.com/larksuite/cli/internal/platform"
 )
 
 // happyPlugin is a textbook plugin: declares Capabilities, calls a few

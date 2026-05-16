@@ -15,7 +15,7 @@ import (
 	"github.com/larksuite/cli/extension/platform"
 	"github.com/larksuite/cli/internal/hook"
 	"github.com/larksuite/cli/internal/output"
-	"github.com/larksuite/cli/internal/platform"
+	internalplatform "github.com/larksuite/cli/internal/platform"
 )
 
 // failClosedAbortingPlugin returns a PluginInstallError on Install,
@@ -158,7 +158,6 @@ func TestNamespacedWrap_doesNotMutateSharedAbortError(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	for i, m := range matched {
-		i, m := i, m
 		go func() {
 			defer wg.Done()
 			err := m.Fn(func(context.Context, platform.Invocation) error { return nil })(

@@ -69,7 +69,7 @@ func satisfiesRequiredCLIVersion(buildVersion, constraint string) (bool, error) 
 	if err != nil {
 		// Build version is unparseable -- treat as DEV so an exotic
 		// build tag doesn't lock plugins out.
-		return true, nil
+		return true, nil //nolint:nilerr // intentional fail-open for unparseable buildVersion
 	}
 	cmp := compareSemver(bv, rv)
 	switch op {

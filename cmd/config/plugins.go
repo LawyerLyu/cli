@@ -8,7 +8,7 @@ import (
 
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/output"
-	"github.com/larksuite/cli/internal/platform"
+	internalplatform "github.com/larksuite/cli/internal/platform"
 )
 
 // NewCmdConfigPlugins exposes the plugin inventory diagnostic command.
