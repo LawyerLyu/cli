@@ -19,6 +19,7 @@ import (
 	"github.com/larksuite/cli/extension/platform"
 	internalauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/build"
+	"github.com/larksuite/cli/internal/cmdpolicy"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/hook"
@@ -286,9 +287,20 @@ func writeSecurityPolicyError(w io.Writer, spErr *internalauth.SecurityPolicyErr
 
 // installUnknownSubcommandGuard replaces cobra's silent help fallback on
 // group commands (no Run/RunE) with an unknown_subcommand error.
+//
+// IMPORTANT: every command modified here is also tagged with
+// cmdpolicy.AnnotationPureGroup so the user-layer policy engine
+// continues to treat the command as a pure parent group. Without the
+// tag, the RunE injection here would flip Runnable()=true and a user
+// rule like `max_risk: read` would deny every `<group> --help` call
+// with reason_code=risk_not_annotated.
 func installUnknownSubcommandGuard(cmd *cobra.Command) {
 	if cmd.HasSubCommands() && cmd.Run == nil && cmd.RunE == nil {
 		cmd.RunE = unknownSubcommandRunE
+		if cmd.Annotations == nil {
+			cmd.Annotations = map[string]string{}
+		}
+		cmd.Annotations[cmdpolicy.AnnotationPureGroup] = "true"
 	}
 	for _, c := range cmd.Commands() {
 		installUnknownSubcommandGuard(c)

@@ -240,6 +240,113 @@ func TestApply_runEReturnsExitErrorAndCommandDeniedError(t *testing.T) {
 	}
 }
 
+// Regression: a pure parent group carrying AnnotationPureGroup must be
+// skipped by both EvaluateAll and aggregateParents. Without the skip,
+// the cmd.installUnknownSubcommandGuard pass (which attaches a RunE to
+// every group for cobra's silent-help fallback) would flip Runnable()
+// to true for `docs`, `drive`, etc., and a yaml rule like
+// `max_risk: read` would deny every `<group> --help` invocation with
+// reason_code = risk_not_annotated.
+func TestEvaluateAll_skipsAnnotatedPureGroup(t *testing.T) {
+	root := &cobra.Command{Use: "lark-cli"}
+	drive := &cobra.Command{
+		Use:  "drive",
+		RunE: func(*cobra.Command, []string) error { return nil }, // emulate guard injection
+		Annotations: map[string]string{
+			cmdpolicy.AnnotationPureGroup: "true",
+		},
+	}
+	root.AddCommand(drive)
+	pull := &cobra.Command{Use: "+pull", RunE: noop}
+	cmdutil.SetRisk(pull, "read")
+	drive.AddCommand(pull)
+
+	e := cmdpolicy.New(&platform.Rule{MaxRisk: "read"})
+	got := e.EvaluateAll(root)
+
+	if d, present := got["drive"]; present {
+		t.Errorf("annotated pure group should not appear in Decisions; got %+v", d)
+	}
+	if !got["drive/+pull"].Allowed {
+		t.Errorf("leaf under pure group must still be evaluated; got %+v", got["drive/+pull"])
+	}
+}
+
+// Regression: hasRunnableDescendant must also treat
+// AnnotationPureGroup-tagged commands as non-runnable. Without the
+// skip, an entire branch consisting of a pure-group placeholder + a
+// single pure-group leaf would advertise itself as a "live" subtree
+// and the parent aggregation pass would refuse to install a deny stub
+// (allLiveChildrenDenied flips to false because the pure group is
+// neither runnable nor in `denied`).
+func TestHasRunnableDescendant_ignoresAnnotatedPureGroup(t *testing.T) {
+	root := &cobra.Command{Use: "lark-cli"}
+	docs := &cobra.Command{Use: "docs"}
+	root.AddCommand(docs)
+
+	// A pure-group sibling of a real leaf. The parent must still
+	// aggregate based on the real leaf alone.
+	placeholder := &cobra.Command{
+		Use:  "placeholder",
+		RunE: func(*cobra.Command, []string) error { return nil },
+		Annotations: map[string]string{
+			cmdpolicy.AnnotationPureGroup: "true",
+		},
+	}
+	docs.AddCommand(placeholder)
+	noChild := &cobra.Command{
+		Use:  "+ghost",
+		RunE: func(*cobra.Command, []string) error { return nil },
+		Annotations: map[string]string{
+			cmdpolicy.AnnotationPureGroup: "true",
+		},
+	}
+	placeholder.AddCommand(noChild)
+
+	fetch := &cobra.Command{Use: "+fetch", RunE: noop}
+	cmdutil.SetRisk(fetch, "write")
+	docs.AddCommand(fetch)
+
+	e := cmdpolicy.New(&platform.Rule{MaxRisk: "read"})
+	decisions := e.EvaluateAll(root)
+	denied := cmdpolicy.BuildDeniedByPath(root, decisions, cmdpolicy.ResolveSource{Kind: cmdpolicy.SourceYAML}, "")
+
+	if _, ok := denied["docs"]; !ok {
+		t.Fatalf("docs should be aggregated as fully denied (pure-group children excluded from live count); map=%+v", denied)
+	}
+}
+
+// Regression: aggregateParents must treat an AnnotationPureGroup-tagged
+// command exactly like a parent-only group. With cmdRunnable accidentally
+// true (RunE attached by the guard), the aggregator would otherwise look
+// for an own-RunE denial entry and skip aggregation, leaving `<group>
+// --help` reachable even when every live child is denied.
+func TestBuildDeniedByPath_aggregatesAnnotatedPureGroup(t *testing.T) {
+	root := &cobra.Command{Use: "lark-cli"}
+	drive := &cobra.Command{
+		Use:  "drive",
+		RunE: func(*cobra.Command, []string) error { return nil },
+		Annotations: map[string]string{
+			cmdpolicy.AnnotationPureGroup: "true",
+		},
+	}
+	root.AddCommand(drive)
+	push := &cobra.Command{Use: "+push", RunE: noop}
+	cmdutil.SetRisk(push, "write")
+	drive.AddCommand(push)
+	pull := &cobra.Command{Use: "+pull", RunE: noop}
+	cmdutil.SetRisk(pull, "write")
+	drive.AddCommand(pull)
+
+	e := cmdpolicy.New(&platform.Rule{MaxRisk: "read"})
+	decisions := e.EvaluateAll(root)
+	denied := cmdpolicy.BuildDeniedByPath(root, decisions, cmdpolicy.ResolveSource{Kind: cmdpolicy.SourceYAML}, "")
+
+	if _, ok := denied["drive"]; !ok {
+		t.Fatalf("aggregator must install drive denial when all children denied; map=%+v", denied)
+	}
+}
+
 // The binary root must never receive a denyStub even if every descendant
 // is denied. cobra still needs root to dispatch help / completion.
 func TestApply_neverInstallsOnRoot(t *testing.T) {

@@ -116,6 +116,22 @@ func installOne(name string, p platform.Plugin, result *InstallResult) error {
 		return capsErr
 	}
 
+	// FailurePolicy is a closed enum. An out-of-range value almost
+	// always means the plugin author shipped FailurePolicy(2)/etc. by
+	// mistake, and the host's switch on caps.FailurePolicy below would
+	// silently treat the unknown value as FailOpen — defeating the
+	// security boundary the policy was meant to express. Reject up
+	// front with ReasonInvalidCapability (classified as
+	// untrusted-config, so the abort is unconditional).
+	if caps.FailurePolicy != platform.FailOpen && caps.FailurePolicy != platform.FailClosed {
+		return &PluginInstallError{
+			PluginName: name,
+			ReasonCode: ReasonInvalidCapability,
+			Reason: fmt.Sprintf("FailurePolicy=%d is not a recognised value (expected FailOpen or FailClosed)",
+				caps.FailurePolicy),
+		}
+	}
+
 	// Strict consistency check: Restricts=true must pair with
 	// FailClosed (design hard-constraint #6).
 	if caps.Restricts && caps.FailurePolicy != platform.FailClosed {

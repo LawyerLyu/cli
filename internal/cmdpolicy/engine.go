@@ -63,6 +63,14 @@ func (e *Engine) EvaluateAll(root *cobra.Command) map[string]Decision {
 		if !c.Runnable() {
 			return
 		}
+		// Pure parent groups carrying the AnnotationPureGroup marker
+		// (installed by cmd.installUnknownSubcommandGuard) look
+		// Runnable to cobra but are not a real leaf: skip them just
+		// like cobra-native parent groups, so a user-level Rule does
+		// not block `<group> --help` discovery.
+		if IsPureGroup(c) {
+			return
+		}
 		path := CanonicalPath(c)
 		if path == "" {
 			return
@@ -211,7 +219,12 @@ func aggregateParents(cmd *cobra.Command, denied map[string]Denial) bool {
 	}
 
 	children := cmd.Commands()
-	cmdRunnable := cmd.Runnable()
+	// A pure parent group decorated with the unknown-subcommand guard
+	// looks Runnable() to cobra but is not a true hybrid: treat it
+	// exactly like cobra-native parent groups so the aggregation pass
+	// can still install an aggregate deny stub when every live child
+	// is denied.
+	cmdRunnable := cmd.Runnable() && !IsPureGroup(cmd)
 	cmdPath := CanonicalPath(cmd)
 
 	// Pure leaf
@@ -277,7 +290,7 @@ func hasRunnableDescendant(cmd *cobra.Command) bool {
 	if cmd == nil {
 		return false
 	}
-	if cmd.Runnable() {
+	if cmd.Runnable() && !IsPureGroup(cmd) {
 		return true
 	}
 	for _, c := range cmd.Commands() {

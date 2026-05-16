@@ -40,6 +40,7 @@ func TestRegister_preservesInsertionOrder(t *testing.T) {
 
 func TestRegister_resetClears(t *testing.T) {
 	platform.ResetForTesting()
+	t.Cleanup(platform.ResetForTesting)
 	platform.Register(stubPlugin{name: "a"})
 	if len(platform.RegisteredPlugins()) != 1 {
 		t.Fatalf("expected 1 plugin")

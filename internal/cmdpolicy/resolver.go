@@ -82,22 +82,27 @@ func Resolve(pluginRules []PluginRule, yamlPath string) (*platform.Rule, Resolve
 		// vfs.Stat lets callers swap in an in-memory FS for tests. The
 		// errors here surface as typed os.ErrNotExist when the file is
 		// absent, just like a direct os.ReadFile call would.
+		//
+		// Error messages use the home-dir-redacted form so the user's
+		// absolute path doesn't reach agents / CI logs through the
+		// warnPolicyError stderr line.
+		display := RedactHomeDir(yamlPath)
 		if _, err := vfs.Stat(yamlPath); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return nil, ResolveSource{Kind: SourceNone}, nil
 			}
-			return nil, ResolveSource{}, fmt.Errorf("stat policy yaml %q: %w", yamlPath, err)
+			return nil, ResolveSource{}, fmt.Errorf("stat policy yaml %q: %w", display, err)
 		}
 		data, err := vfs.ReadFile(yamlPath)
 		if err != nil {
-			return nil, ResolveSource{}, fmt.Errorf("read policy yaml %q: %w", yamlPath, err)
+			return nil, ResolveSource{}, fmt.Errorf("read policy yaml %q: %w", display, err)
 		}
 		rule, err := pyaml.Parse(data)
 		if err != nil {
-			return nil, ResolveSource{}, fmt.Errorf("policy yaml %q: %w", yamlPath, err)
+			return nil, ResolveSource{}, fmt.Errorf("policy yaml %q: %w", display, err)
 		}
 		if err := ValidateRule(rule); err != nil {
-			return nil, ResolveSource{}, fmt.Errorf("policy yaml %q: %w", yamlPath, err)
+			return nil, ResolveSource{}, fmt.Errorf("policy yaml %q: %w", display, err)
 		}
 		return rule, ResolveSource{Kind: SourceYAML, Name: yamlPath}, nil
 	}

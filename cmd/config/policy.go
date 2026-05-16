@@ -74,10 +74,20 @@ func runConfigPolicyShow(f *cmdutil.Factory) error {
 		return nil
 	}
 
+	// `yaml_path` and the yaml-source `source_name` leak the user's home
+	// directory in their raw form (e.g. /Users/alice/.lark-cli/policy.yml).
+	// `config policy show` is read by AI agents and CI logs, so we redact
+	// the prefix before emitting -- same rule as policySourceLabel for
+	// envelopes. For plugin sources, Source.Name is the plugin name (no
+	// path) and is surfaced verbatim.
+	sourceName := active.Source.Name
+	if active.Source.Kind == cmdpolicy.SourceYAML {
+		sourceName = cmdpolicy.RedactHomeDir(sourceName)
+	}
 	out := map[string]any{
 		"source":       string(active.Source.Kind),
-		"source_name":  active.Source.Name,
-		"yaml_path":    active.YAMLPath,
+		"source_name":  sourceName,
+		"yaml_path":    cmdpolicy.RedactHomeDir(active.YAMLPath),
 		"denied_paths": active.DeniedPaths,
 	}
 	if active.Rule != nil {

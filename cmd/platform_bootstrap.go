@@ -13,9 +13,9 @@ import (
 
 	"github.com/larksuite/cli/extension/platform"
 	"github.com/larksuite/cli/internal/cmdpolicy"
+	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/hook"
 	internalplatform "github.com/larksuite/cli/internal/platform"
-	"github.com/larksuite/cli/internal/vfs"
 )
 
 // userPolicyFileName is the conventional filename for the user-layer Rule.
@@ -221,14 +221,20 @@ func splitCSV(s string) []string {
 	return out
 }
 
-// userPolicyPath returns the absolute path of ~/.lark-cli/policy.yml,
-// or an error if the user's home directory cannot be determined.
+// userPolicyPath returns the path of <baseConfigDir>/policy.yml.
+//
+// The base directory honours LARKSUITE_CLI_CONFIG_DIR (via
+// core.GetBaseConfigDir) so that test isolation, container deployments
+// and per-Agent config overrides all see a consistent policy location.
+// Using vfs.UserHomeDir directly here would silently bypass the env
+// override and route every test through the real ~/.lark-cli.
+//
+// The error return is retained for caller compatibility but is always
+// nil today: GetBaseConfigDir falls back to a relative ".lark-cli" when
+// the home dir can't be resolved, and the resolver already treats a
+// missing file as "no policy".
 func userPolicyPath() (string, error) {
-	home, err := vfs.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".lark-cli", userPolicyFileName), nil
+	return filepath.Join(core.GetBaseConfigDir(), userPolicyFileName), nil
 }
 
 // warnPolicyError writes a one-line stderr warning when the user policy

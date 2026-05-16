@@ -72,7 +72,31 @@ func Apply(root *cobra.Command, deniedByPath map[string]Denial) int {
 const (
 	AnnotationDenialLayer  = "lark:policy_denied_layer"
 	AnnotationDenialSource = "lark:policy_denied_source"
+
+	// AnnotationPureGroup marks a cobra.Command that is logically a
+	// parent-only group but had a RunE attached by the bootstrap-time
+	// unknown-subcommand guard. The engine treats annotated commands
+	// the same as un-annotated parent groups (no RunE): they are not
+	// evaluated against the Rule, and aggregateParents does not treat
+	// them as hybrids.
+	//
+	// Without this signal, a user enabling a policy.yml with
+	// max_risk: read would see every group (`lark-cli drive --help`,
+	// `lark-cli docs --help`) return exit 2 + risk_not_annotated,
+	// because the guard's RunE flips Runnable()=true and the engine
+	// then demands a risk_level annotation on the group itself.
+	AnnotationPureGroup = "lark:cmd_pure_group"
 )
+
+// IsPureGroup reports whether cmd carries the AnnotationPureGroup marker.
+// Used by the engine to skip evaluation and by the aggregator to treat the
+// command as a parent-only group regardless of cobra's Runnable() answer.
+func IsPureGroup(cmd *cobra.Command) bool {
+	if cmd == nil || cmd.Annotations == nil {
+		return false
+	}
+	return cmd.Annotations[AnnotationPureGroup] == "true"
+}
 
 // CommandDeniedFromDenial materialises the wrapped error type carried
 // on ExitError.Err so errors.As works for in-process consumers.

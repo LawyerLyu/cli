@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Features
+
+- **extension/platform**: Public plugin SDK with policy engine, hooks,
+  and the `NewPlugin` Builder. Plugins ship as a fork of `lark-cli` that
+  blank-imports the plugin package; the host installs hooks (Observe /
+  Wrap / Lifecycle) and a single optional user-layer `Restrict` rule.
+  Diagnostic commands `lark-cli config plugins show` and
+  `lark-cli config policy show` enumerate the resulting inventory (#910).
+
+### Breaking Changes
+
+- **error.type rename — `strict_mode` / `pruning` → `command_denied`**.
+  Both the strict-mode pruning pass and the new user-layer policy
+  engine now emit a single envelope `error.type == "command_denied"`.
+  The original layer is preserved on `detail.layer` (`strict_mode` or
+  `policy`), so agents that need to distinguish can still do so.
+
+  - Old: `error.type == "strict_mode"` and `error.type == "pruning"`.
+  - New: `error.type == "command_denied" && detail.layer == "strict_mode"`
+    or `detail.layer == "policy"`.
+  - Migration: any agent / monitor / script that matches
+    `error.type == "strict_mode"` will silently break — update the
+    match to the new shape.
+
+- **Unknown subcommand returns exit 2 + structured error**. Previously
+  invoking a group with an unknown subcommand (e.g.
+  `lark-cli drive nosuchcommand`) silently printed help and exited 0.
+  It now emits an `error.type == "unknown_subcommand"` envelope and
+  exits with code 2.
+  - Migration: any script / CI step that relied on exit-0 for unknown
+    subcommands must be updated. `lark-cli <group> --help` still
+    returns exit 0 + help as before.
+
+### Documentation
+
+- **extension/platform**: Embed the full `reason_code` reference table
+  inside `extension/platform/README.md` so the public SDK landing page
+  no longer links to documents that live outside the repository (#910).
+
 ## [v1.0.31] - 2026-05-14
 
 ### Features
