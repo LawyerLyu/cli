@@ -126,56 +126,6 @@ func TestConfigPolicyShow_YamlShadowedWarning(t *testing.T) {
 	}
 }
 
-// `config policy validate <path>` must succeed for a well-formed file.
-func TestConfigPolicyValidate_ValidYaml(t *testing.T) {
-	dir := t.TempDir()
-	p := filepath.Join(dir, "policy.yml")
-	if err := os.WriteFile(p, []byte(`name: ok
-allow: ["docs/**"]
-max_risk: read
-`), 0o644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	f, out, _ := newPolicyTestFactory()
-	if err := runConfigPolicyValidate(f, p); err != nil {
-		t.Fatalf("validate: %v", err)
-	}
-	var got map[string]any
-	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
-		t.Fatalf("not json: %v", err)
-	}
-	if got["ok"] != true {
-		t.Errorf("ok = %v, want true", got["ok"])
-	}
-	if got["rule_name"] != "ok" {
-		t.Errorf("rule_name = %v", got["rule_name"])
-	}
-}
-
-// Validate must reject a malformed file with a structured error so CI
-// pipelines can parse the result.
-func TestConfigPolicyValidate_InvalidYamlRejected(t *testing.T) {
-	dir := t.TempDir()
-	p := filepath.Join(dir, "policy.yml")
-	if err := os.WriteFile(p, []byte("max_risk: nukem\n"), 0o644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	f, _, _ := newPolicyTestFactory()
-	err := runConfigPolicyValidate(f, p)
-	if err == nil {
-		t.Fatal("expected validation error, got nil")
-	}
-}
-
-// Missing file is a validation error too (not a panic).
-func TestConfigPolicyValidate_MissingFileRejected(t *testing.T) {
-	f, _, _ := newPolicyTestFactory()
-	err := runConfigPolicyValidate(f, "/nonexistent/policy.yml")
-	if err == nil {
-		t.Fatal("expected error for missing file, got nil")
-	}
-}
-
 // Regression: the parent `config` command declares a PersistentPreRunE
 // that calls RequireBuiltinCredentialProvider; env credentials cause
 // it to return external_provider. `config policy` is a diagnostic

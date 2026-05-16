@@ -13,7 +13,7 @@ import (
 )
 
 // configPolicyTree builds the minimal slice of the real command tree
-// where diagnostic exemption applies: root -> config -> policy -> show/validate.
+// where diagnostic exemption applies: root -> config -> policy -> show.
 func configPolicyTree() *cobra.Command {
 	root := &cobra.Command{Use: "lark-cli"}
 	config := &cobra.Command{Use: "config"}
@@ -21,7 +21,6 @@ func configPolicyTree() *cobra.Command {
 	policy := &cobra.Command{Use: "policy"}
 	config.AddCommand(policy)
 	policy.AddCommand(&cobra.Command{Use: "show", RunE: noop})
-	policy.AddCommand(&cobra.Command{Use: "validate", RunE: noop})
 	// Plus an unrelated command that the Rule will deny, to anchor the
 	// "everything except diagnostics" check.
 	im := &cobra.Command{Use: "im"}
@@ -41,10 +40,6 @@ func TestEvaluate_diagnosticAllowedDespiteStrictAllow(t *testing.T) {
 	if !got["config/policy/show"].Allowed {
 		t.Errorf("config/policy/show must be unconditionally allowed; got Allowed=false reason=%q",
 			got["config/policy/show"].ReasonCode)
-	}
-	if !got["config/policy/validate"].Allowed {
-		t.Errorf("config/policy/validate must be unconditionally allowed; got Allowed=false reason=%q",
-			got["config/policy/validate"].ReasonCode)
 	}
 	// Sanity: a non-diagnostic command is still denied so we know the
 	// rule itself is active.
@@ -77,7 +72,6 @@ func TestIsDiagnosticPath(t *testing.T) {
 		want bool
 	}{
 		{"config/policy/show", true},
-		{"config/policy/validate", true},
 		{"config/plugins/show", true},
 		{"config/policy", false},  // parent group itself is not exempt
 		{"config/plugins", false}, // parent group itself is not exempt

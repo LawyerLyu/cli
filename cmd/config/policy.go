@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/larksuite/cli/internal/cmdpolicy"
-	pyaml "github.com/larksuite/cli/internal/cmdpolicy/yaml"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/output"
 )
@@ -18,29 +17,27 @@ import (
 // NewCmdConfigPolicy returns the `config policy` group. Subcommands:
 //
 //	show              - print the resolved user-layer Rule + source + denied count
-//	validate <path>   - parse + validate a yaml policy file without applying it
 //
-// Both commands write a structured JSON envelope so AI agents and CI
+// The command writes a structured JSON envelope so AI agents and CI
 // integrations can parse the result.
 func NewCmdConfigPolicy(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "policy",
 		Hidden: true, // diagnostic-only; kept callable, omitted from --help to reduce noise
-		Short:  "Inspect and validate user-layer command policy",
+		Short:  "Inspect the user-layer command policy",
 		// The parent `config` group has a PersistentPreRunE that calls
 		// RequireBuiltinCredentialProvider, which returns external_provider
-		// when env credentials are set. `policy show` and `policy validate`
-		// are READ-ONLY diagnostic commands and do not modify credentials,
-		// so they must work regardless of which credential provider is
-		// active. A leaf-level no-op PersistentPreRunE wins under cobra's
-		// "first walking up" rule and bypasses the parent check.
+		// when env credentials are set. `policy show` is a READ-ONLY
+		// diagnostic command and does not modify credentials, so it must
+		// work regardless of which credential provider is active. A
+		// leaf-level no-op PersistentPreRunE wins under cobra's "first
+		// walking up" rule and bypasses the parent check.
 		PersistentPreRunE: func(c *cobra.Command, _ []string) error {
 			c.SilenceUsage = true
 			return nil
 		},
 	}
 	cmd.AddCommand(newCmdConfigPolicyShow(f))
-	cmd.AddCommand(newCmdConfigPolicyValidate(f))
 	return cmd
 }
 
@@ -104,44 +101,5 @@ func runConfigPolicyShow(f *cmdutil.Factory) error {
 		}
 	}
 	output.PrintJson(f.IOStreams.Out, out)
-	return nil
-}
-
-func newCmdConfigPolicyValidate(f *cmdutil.Factory) *cobra.Command {
-	return &cobra.Command{
-		Use:    "validate <path>",
-		Hidden: true, // diagnostic-only; kept callable, omitted from --help to reduce noise
-		Short:  "Validate a yaml policy file (parse + schema + glob checks) without applying it",
-		Args:   cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConfigPolicyValidate(f, args[0])
-		},
-	}
-}
-
-func runConfigPolicyValidate(f *cmdutil.Factory, path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return output.Errorf(output.ExitValidation, "validation",
-			"read policy yaml %q: %v", path, err)
-	}
-	rule, err := pyaml.Parse(data)
-	if err != nil {
-		return output.Errorf(output.ExitValidation, "validation",
-			"parse policy yaml %q: %v", path, err)
-	}
-	if err := cmdpolicy.ValidateRule(rule); err != nil {
-		return output.Errorf(output.ExitValidation, "validation",
-			"invalid rule in %q: %v", path, err)
-	}
-	output.PrintJson(f.IOStreams.Out, map[string]any{
-		"ok":                true,
-		"path":              path,
-		"rule_name":         rule.Name,
-		"allow":             rule.Allow,
-		"deny":              rule.Deny,
-		"max_risk":          rule.MaxRisk,
-		"allow_unannotated": rule.AllowUnannotated,
-	})
 	return nil
 }

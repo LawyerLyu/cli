@@ -12,14 +12,13 @@ package cmdpolicy
 //     where the operator can no longer inspect / validate the policy
 //     that is locking them out.
 //
-// Today this is `config policy show` and `config policy validate` --
+// Today this is `config policy show` and `config plugins show` --
 // both purely local introspection over the resolved policy. Keep the
 // list small and audited: every entry is a permanent hole in the
 // fail-closed boundary.
 var diagnosticPaths = map[string]bool{
-	"config/policy/show":     true,
-	"config/policy/validate": true,
-	"config/plugins/show":    true,
+	"config/policy/show":  true,
+	"config/plugins/show": true,
 }
 
 // IsDiagnosticPath reports whether the given canonical command path is
