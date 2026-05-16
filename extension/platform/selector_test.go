@@ -133,11 +133,23 @@ func TestSelector_AndOrNot(t *testing.T) {
 }
 
 func TestSelector_NilSafeWhenComposed(t *testing.T) {
-	// Defensive: a nil Selector passed to And/Or would panic if not
-	// guarded. The current impl does not nil-check; this test pins
-	// that nil composition panics so a future maintainer knows to add
-	// guards if they relax the convention.
-	defer func() { _ = recover() }()
+	// A nil Selector is equivalent to None() per the Selector godoc.
+	// Composition must honour that contract: the resulting selector
+	// must not panic when invoked and must produce the documented
+	// boolean outcome (nil-as-None propagates through AND/OR/NOT).
 	var s platform.Selector
-	_ = s.And(platform.All())
+	cmd := fakeView{domain: "docs"}
+
+	if got := s.And(platform.All())(cmd); got {
+		t.Errorf("nil.And(All) should match None semantics (false), got true")
+	}
+	if got := s.Or(platform.All())(cmd); !got {
+		t.Errorf("nil.Or(All) should match (true), got false")
+	}
+	if got := platform.All().And(s)(cmd); got {
+		t.Errorf("All.And(nil) should be None (false), got true")
+	}
+	if got := s.Not()(cmd); !got {
+		t.Errorf("(nil).Not() should be Not(None) = true, got false")
+	}
 }

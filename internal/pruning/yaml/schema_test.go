@@ -74,3 +74,19 @@ func TestParse_emptyIsError(t *testing.T) {
 		t.Fatalf("Parse should reject empty input; the resolver handles 'no file' separately")
 	}
 }
+
+// A stray "---" separator followed by another document would silently
+// drop the trailing rule if yaml.v3 stopped after the first Decode.
+// Parse must reject multi-document input so the operator can't typo a
+// separator and end up with an unintentionally empty policy.
+func TestParse_rejectsMultipleDocuments(t *testing.T) {
+	data := []byte(`name: first
+max_risk: read
+---
+name: second
+max_risk: write
+`)
+	if _, err := pyaml.Parse(data); err == nil {
+		t.Fatalf("Parse should reject multi-document YAML input")
+	}
+}

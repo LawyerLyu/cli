@@ -89,24 +89,36 @@ func ByReadOnly() Selector {
 	}
 }
 
+// normalize maps a nil Selector to None() so combinators honour the
+// "nil == None()" contract documented on the Selector type.
+func normalize(s Selector) Selector {
+	if s == nil {
+		return None()
+	}
+	return s
+}
+
 // And composes selectors with AND semantics.
 func (s Selector) And(other Selector) Selector {
+	left, right := normalize(s), normalize(other)
 	return func(cmd CommandView) bool {
-		return s(cmd) && other(cmd)
+		return left(cmd) && right(cmd)
 	}
 }
 
 // Or composes selectors with OR semantics.
 func (s Selector) Or(other Selector) Selector {
+	left, right := normalize(s), normalize(other)
 	return func(cmd CommandView) bool {
-		return s(cmd) || other(cmd)
+		return left(cmd) || right(cmd)
 	}
 }
 
 // Not negates the selector.
 func (s Selector) Not() Selector {
+	inner := normalize(s)
 	return func(cmd CommandView) bool {
-		return !s(cmd)
+		return !inner(cmd)
 	}
 }
 

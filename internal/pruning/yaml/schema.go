@@ -14,7 +14,9 @@
 package yaml
 
 import (
+	"errors"
 	"fmt"
+	"io"
 
 	gopkgyaml "gopkg.in/yaml.v3"
 
@@ -44,6 +46,18 @@ func Parse(data []byte) (*platform.Rule, error) {
 	dec := gopkgyaml.NewDecoder(bytesReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&s); err != nil {
+		return nil, fmt.Errorf("parse policy yaml: %w", err)
+	}
+
+	// Reject multi-document input. yaml.v3 only decodes one document per
+	// call; silently dropping trailing docs would let a typo'd "---" hide
+	// real policy constraints (e.g. a stray separator followed by the
+	// intended deny list would leave enforcement empty).
+	var extra schema
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return nil, fmt.Errorf("parse policy yaml: multiple YAML documents are not allowed")
+		}
 		return nil, fmt.Errorf("parse policy yaml: %w", err)
 	}
 
