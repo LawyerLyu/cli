@@ -6,8 +6,6 @@ package config
 import (
 	"bytes"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/larksuite/cli/extension/platform"
@@ -48,8 +46,7 @@ func TestConfigPolicyShow_NoActivePolicy(t *testing.T) {
 }
 
 // When bootstrap recorded an active plugin Rule, `show` emits the rule
-// plus its source. yaml_shadowed is true when a yaml file exists but a
-// plugin overrode it; verified separately below.
+// plus its source.
 func TestConfigPolicyShow_PluginActive(t *testing.T) {
 	cmdpolicy.ResetActiveForTesting()
 	t.Cleanup(cmdpolicy.ResetActiveForTesting)
@@ -95,34 +92,39 @@ func TestConfigPolicyShow_PluginActive(t *testing.T) {
 	}
 }
 
-// When a yaml file exists AND a plugin Rule won, show should warn the
-// user "yaml IGNORED" so they're not surprised that their yaml is
-// inert.
-func TestConfigPolicyShow_YamlShadowedWarning(t *testing.T) {
+// `source_name` must be empty when source=yaml. The yaml path is
+// deliberately not surfaced (matches engine envelope convention,
+// avoids leaking the user's home dir to AI agents / CI logs). The
+// rule's "name:" field is the disambiguator users should rely on.
+func TestConfigPolicyShow_YamlSourceNameIsEmpty(t *testing.T) {
 	cmdpolicy.ResetActiveForTesting()
 	t.Cleanup(cmdpolicy.ResetActiveForTesting)
 
-	dir := t.TempDir()
-	yamlPath := filepath.Join(dir, "policy.yml")
-	if err := os.WriteFile(yamlPath, []byte("name: shadowed\n"), 0o644); err != nil {
-		t.Fatalf("write yaml: %v", err)
-	}
-
 	cmdpolicy.SetActive(&cmdpolicy.ActivePolicy{
-		Rule: &platform.Rule{Name: "plug"},
+		Rule: &platform.Rule{Name: "my-yaml-rule"},
 		Source: cmdpolicy.ResolveSource{
-			Kind: cmdpolicy.SourcePlugin,
-			Name: "plug",
+			Kind: cmdpolicy.SourceYAML,
+			Name: "/Users/alice/.lark-cli/policy.yml",
 		},
-		YAMLPath: yamlPath,
 	})
 
-	f, _, errOut := newPolicyTestFactory()
+	f, out, _ := newPolicyTestFactory()
 	if err := runConfigPolicyShow(f); err != nil {
 		t.Fatalf("show: %v", err)
 	}
-	if !bytes.Contains(errOut.Bytes(), []byte("yaml IGNORED")) {
-		t.Errorf("expected 'yaml IGNORED' warning, got: %q", errOut.String())
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("not json: %v\n%s", err, out.String())
+	}
+	if got["source"] != "yaml" {
+		t.Errorf("source = %v, want yaml", got["source"])
+	}
+	if got["source_name"] != "" {
+		t.Errorf("source_name = %q, want empty (yaml path must not leak)", got["source_name"])
+	}
+	// The path must not appear anywhere in the envelope.
+	if bytes.Contains(out.Bytes(), []byte("/Users/alice")) {
+		t.Errorf("envelope leaked yaml path: %s", out.String())
 	}
 }
 

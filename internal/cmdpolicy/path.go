@@ -4,28 +4,15 @@
 package cmdpolicy
 
 import (
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/larksuite/cli/internal/core"
-	"github.com/larksuite/cli/internal/vfs"
 )
 
 // CanonicalPath returns the rootless slash-separated path used everywhere in
 // the pruning framework. Cobra's CommandPath() yields space-separated
 // segments ("lark-cli docs +update"); doublestar globs ("docs/**") require
 // slashes, so all internal lookups go through this conversion.
-//
-// Algorithm:
-//
-//  1. Collect cmd.Use first words from the command up to (but not including)
-//     the root, in reverse order.
-//  2. Reverse the collection and join with "/".
-//
-// The root (the binary's own command, no parent) is stripped. For a command
-// with no parent, the returned path is just its own Use word.
 func CanonicalPath(cmd *cobra.Command) string {
 	if cmd == nil {
 		return ""
@@ -34,93 +21,19 @@ func CanonicalPath(cmd *cobra.Command) string {
 	for c := cmd; c != nil && c.HasParent(); c = c.Parent() {
 		parts = append(parts, useName(c))
 	}
-	// reverse
 	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
 		parts[i], parts[j] = parts[j], parts[i]
 	}
 	if len(parts) == 0 {
-		// orphan command -- return its own name so callers still see
-		// something stable.
 		return useName(cmd)
 	}
 	return strings.Join(parts, "/")
 }
 
-// useName extracts the first word of cmd.Use ("update [flags] <doc>" -> "update").
 func useName(cmd *cobra.Command) string {
 	name := cmd.Use
 	if i := strings.IndexByte(name, ' '); i >= 0 {
 		name = name[:i]
 	}
 	return name
-}
-
-// RedactHomeDir collapses environment-rooted prefixes so path strings
-// can be safely surfaced through `config policy show` and resolver
-// error messages without leaking the user's filesystem layout to AI
-// agents / CI logs.
-//
-// It folds, in priority order:
-//  1. core.GetBaseConfigDir() (typically ~/.lark-cli, or a custom
-//     directory under LARKSUITE_CLI_CONFIG_DIR — e.g.
-//     "/private/tmp/sandbox/.lark-cli" in a sandboxed run) → "<config>"
-//  2. The user's home directory → "~"
-//
-// (1) runs first so a `LARKSUITE_CLI_CONFIG_DIR` pointing outside `$HOME`
-// still produces a stable, non-identifying label. When neither prefix
-// matches, the input is returned unchanged — those cases don't leak
-// anything that wasn't already passed in by the caller.
-//
-// The implementation operates on the cleaned strings (no
-// `filepath.Abs`) because the depguard / forbidigo lint policy bans
-// direct filesystem access from internal/. All real call sites pass
-// already-absolute paths (`core.GetBaseConfigDir()` returns absolute
-// when LARKSUITE_CLI_CONFIG_DIR or $HOME is set; resolver builds
-// yamlPath via filepath.Join on that absolute root). A relative input
-// simply falls through the prefix checks and is returned unchanged.
-func RedactHomeDir(path string) string {
-	if path == "" {
-		return ""
-	}
-	clean := filepath.Clean(path)
-
-	if rel, ok := foldPrefix(clean, core.GetBaseConfigDir()); ok {
-		if rel == "" {
-			return "<config>"
-		}
-		return "<config>/" + rel
-	}
-
-	home, err := vfs.UserHomeDir()
-	if err != nil || home == "" {
-		return path
-	}
-	if rel, ok := foldPrefix(clean, home); ok {
-		if rel == "" {
-			return "~"
-		}
-		return "~/" + rel
-	}
-	return path
-}
-
-// foldPrefix reports whether path lives at or beneath prefix; on hit
-// it returns the slash-form relative tail (empty when path == prefix).
-// filepath.Rel itself rejects the relative-vs-absolute mismatch case
-// with an error, so a relative input against an absolute prefix (or
-// vice versa) falls through to the "not a hit" branch — no extra
-// validation needed.
-func foldPrefix(path, prefix string) (string, bool) {
-	if prefix == "" {
-		return "", false
-	}
-	cleanPrefix := filepath.Clean(prefix)
-	rel, err := filepath.Rel(cleanPrefix, path)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", false
-	}
-	if rel == "." {
-		return "", true
-	}
-	return filepath.ToSlash(rel), true
 }

@@ -14,11 +14,6 @@ func NewCmdConfig(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Global CLI configuration management",
-		Long: `Global CLI configuration management.
-
-Diagnostic (hidden) commands — runnable but omitted from --help:
-  lark-cli config policy show    Inspect active user-layer policy
-  lark-cli config plugins show   Inspect installed plugins and hooks`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// Replicate rootCmd's PersistentPreRun behaviour: cobra stops at the first
 			// PersistentPreRun[E] found walking up the chain, so the root-level

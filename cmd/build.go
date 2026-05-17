@@ -133,26 +133,13 @@ func buildInternal(ctx context.Context, inv cmdutil.InvocationContext, opts ...B
 
 	installUnknownSubcommandGuard(rootCmd)
 
-	// Prune commands incompatible with strict mode.
 	if mode := f.ResolveStrictMode(ctx); mode.IsActive() {
 		pruneForStrictMode(rootCmd, mode)
 	}
 
-	// Run the platform host: install registered plugins, collecting
-	// their Restrict() contributions and their hooks. FailClosed
-	// failures (and untrusted-config failures like restricts_mismatch)
-	// are abort-worthy: InstallAll returns an error in those cases.
-	// We honour that by installing a PersistentPreRunE that emits
-	// the structured envelope at command-dispatch time -- buildInternal
-	// itself cannot return an error without breaking its assembly
-	// contract, but cobra runs PersistentPreRunE before any RunE so
-	// the user sees the error on their very next invocation.
 	installResult, installErr := installPluginsAndHooks(cfg.streams.ErrOut)
 	if installErr != nil {
 		installPluginInstallErrorGuard(rootCmd, installErr)
-		// Stop wiring more state from a failed install -- the rest of
-		// the function would only matter if the CLI is allowed to
-		// proceed normally, which it isn't.
 		return f, rootCmd, nil
 	}
 	var pluginRules []cmdpolicy.PluginRule
@@ -162,16 +149,9 @@ func buildInternal(ctx context.Context, inv cmdutil.InvocationContext, opts ...B
 		registry = installResult.Registry
 	}
 
-	// Apply user-layer command pruning: yaml + Plugin.Restrict.
-	//
-	// **Error policy splits by source**:
-	//   - Plugin path (any pluginRules contributed): a validation or
-	//     conflict error is a HARD failure -- the plugin author asked
-	//     for a security policy, silently dropping it would leave the
-	//     CLI more permissive than intended. Abort via the conflict
-	//     guard so every command surfaces the structured envelope.
-	//   - yaml-only path: stays fail-OPEN with a warning. A user typo
-	//     in policy.yml must not lock them out of every command.
+	// Policy errors fail-CLOSED when a plugin contributed (security
+	// intent must not be silently dropped); yaml-only errors fail-OPEN
+	// with a warning so a typo can't lock the user out.
 	if err := applyUserPolicyPruning(rootCmd, pluginRules); err != nil {
 		if len(pluginRules) > 0 {
 			installPluginConflictGuard(rootCmd, err)
@@ -180,15 +160,6 @@ func buildInternal(ctx context.Context, inv cmdutil.InvocationContext, opts ...B
 		warnPolicyError(cfg.streams.ErrOut, err)
 	}
 
-	// Install hooks onto the (now-pruned) command tree and emit the
-	// Startup lifecycle event so Plugin.On(Startup) handlers can run.
-	//
-	// Startup handler error or panic is a HARD failure: a plugin's
-	// Startup logic is part of its install contract, and silently
-	// continuing would mean the plugin's invariants do not hold while
-	// the rest of its hooks (Wrap / Observe) still fire. Install the
-	// plugin_lifecycle guard and short-circuit so every subsequent
-	// dispatch surfaces the envelope.
 	if registry != nil {
 		if err := wireHooks(ctx, rootCmd, registry); err != nil {
 			installPluginLifecycleErrorGuard(rootCmd, err)
@@ -196,10 +167,6 @@ func buildInternal(ctx context.Context, inv cmdutil.InvocationContext, opts ...B
 		}
 	}
 
-	// Snapshot the plugin inventory so `config plugins show` can answer
-	// "what plugins / hooks / rules are currently in effect" without
-	// re-calling plugin methods at display time.
 	recordInventory(installResult)
-
 	return f, rootCmd, registry
 }

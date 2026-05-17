@@ -18,8 +18,7 @@ import (
 type ActivePolicy struct {
 	Rule        *platform.Rule
 	Source      ResolveSource
-	YAMLPath    string // path examined, populated even when yaml was shadowed by a plugin Rule
-	DeniedPaths int    // number of commands the engine marked as denied (post-aggregation)
+	DeniedPaths int // number of commands the engine marked as denied (post-aggregation)
 }
 
 var (
@@ -58,8 +57,8 @@ func GetActive() *ActivePolicy {
 }
 
 // cloneActivePolicy deep-copies the top-level struct plus the embedded
-// Rule's slice fields. Other fields (Source, YAMLPath, DeniedPaths)
-// are value types so the struct copy already disjoints them.
+// Rule's slice fields. Other fields (Source, DeniedPaths) are value
+// types so the struct copy already disjoints them.
 func cloneActivePolicy(in *ActivePolicy) *ActivePolicy {
 	if in == nil {
 		return nil

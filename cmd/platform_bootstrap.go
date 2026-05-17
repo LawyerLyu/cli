@@ -42,7 +42,7 @@ func applyUserPolicyPruning(rootCmd *cobra.Command, pluginRules []cmdpolicy.Plug
 		yamlPath = ""
 	}
 
-	rule, source, err := cmdpolicy.Resolve(pluginRules, yamlPath)
+	yamlRule, err := cmdpolicy.LoadYAMLPolicy(yamlPath)
 	if err != nil {
 		// Yaml-only failures are fail-OPEN at the caller (warn and
 		// continue), but the active-policy snapshot is process-global
@@ -53,11 +53,18 @@ func applyUserPolicyPruning(rootCmd *cobra.Command, pluginRules []cmdpolicy.Plug
 		cmdpolicy.SetActive(nil)
 		return err
 	}
+
+	rule, source, err := cmdpolicy.Resolve(cmdpolicy.Sources{
+		PluginRules: pluginRules,
+		YAMLRule:    yamlRule,
+		YAMLPath:    yamlPath,
+	})
+	if err != nil {
+		cmdpolicy.SetActive(nil)
+		return err
+	}
 	if rule == nil {
-		cmdpolicy.SetActive(&cmdpolicy.ActivePolicy{
-			Source:   source,
-			YAMLPath: yamlPath,
-		})
+		cmdpolicy.SetActive(&cmdpolicy.ActivePolicy{Source: source})
 		return nil
 	}
 
@@ -66,11 +73,9 @@ func applyUserPolicyPruning(rootCmd *cobra.Command, pluginRules []cmdpolicy.Plug
 	denied := cmdpolicy.BuildDeniedByPath(rootCmd, decisions, source, rule.Name)
 	cmdpolicy.Apply(rootCmd, denied)
 
-	// Record the active policy so `config policy show` can read it.
 	cmdpolicy.SetActive(&cmdpolicy.ActivePolicy{
 		Rule:        rule,
 		Source:      source,
-		YAMLPath:    yamlPath,
 		DeniedPaths: len(denied),
 	})
 	return nil
