@@ -21,17 +21,9 @@ import "time"
 //     a Wrapper (the value the wrapped handler returned)
 //   - DeniedByPolicy / DenialLayer / DenialPolicySource are populated by
 //     the framework's denial guard before any hook runs
-//   - StrictMode / Identity may return ok=false in Before observers if
-//     the bootstrap pipeline has not yet resolved them; After observers
-//     always see ok=true
 type Invocation interface {
-	// Cmd is the read-only snapshot of the dispatched command.
 	Cmd() CommandView
-
-	// Args is the positional args slice the user invoked the command with.
 	Args() []string
-
-	// Started is the wall-clock time the outermost RunE wrapper began.
 	Started() time.Time
 
 	// Err is the error the wrapped handler returned. Populated for
@@ -51,22 +43,9 @@ type Invocation interface {
 	//   ""             - not denied
 	//   "strict_mode"  - credential strict-mode
 	//   "policy"       - user-layer Rule (Plugin.Restrict() or yaml)
-	//
-	// Matches the detail.layer field in the envelope so consumers can
-	// route recovery logic by this value alone.
 	DenialLayer() string
 
 	// DenialPolicySource returns the specific source identifier
-	// ("plugin:secaudit", "yaml", "strict-mode") corresponding to the
-	// denial. Empty when the command was not denied.
+	// ("plugin:secaudit", "yaml", "strict-mode"). Empty when not denied.
 	DenialPolicySource() string
-
-	// StrictMode returns the active credential strict-mode value
-	// ("user", "bot", "off"). ok=false signals "not yet resolved".
-	StrictMode() (mode string, ok bool)
-
-	// Identity returns the resolved identity ("user"/"bot") for the
-	// current command. resolved=false means the framework has not yet
-	// resolved identity at the call site.
-	Identity() (id string, resolved bool)
 }

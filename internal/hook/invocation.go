@@ -13,10 +13,6 @@ import (
 // platform.Invocation. All setters are unexported so plugin code
 // (which only sees the platform.Invocation interface) cannot mutate
 // state.
-//
-// The "denial" / "strict_mode" / "identity" fields are populated by
-// the framework's bootstrap pipeline before any hook fires; plugins
-// only read them through the interface.
 type invocation struct {
 	cmd     platform.CommandView
 	args    []string
@@ -26,12 +22,6 @@ type invocation struct {
 	denied bool
 	layer  string
 	source string
-
-	strictMode      string
-	strictModeKnown bool
-
-	identity         string
-	identityResolved bool
 }
 
 // newInvocation copies args so the read-only platform.Invocation
@@ -65,9 +55,6 @@ func (i *invocation) DenialPolicySource() string {
 	return i.source
 }
 
-func (i *invocation) StrictMode() (string, bool) { return i.strictMode, i.strictModeKnown }
-func (i *invocation) Identity() (string, bool)   { return i.identity, i.identityResolved }
-
 // --- framework-internal setters (unexported) ---
 
 func (i *invocation) setDenial(layer, source string) {
@@ -75,12 +62,6 @@ func (i *invocation) setDenial(layer, source string) {
 	i.layer = layer
 	i.source = source
 }
-
-// StrictMode and Identity setters are intentionally absent in V1: the
-// framework does not yet plumb either value to the invocation, and
-// platform.Invocation.StrictMode() / Identity() therefore return zero
-// values. Add the setters when the bootstrap pipeline starts resolving
-// them.
 
 func (i *invocation) setErr(err error) {
 	i.err = err
