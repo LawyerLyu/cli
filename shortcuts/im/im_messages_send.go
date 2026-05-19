@@ -81,10 +81,14 @@ var ImMessagesSend = common.Shortcut{
 		if desc != "" {
 			d.Desc(desc)
 		}
-		return d.
+		chain := d.
 			POST("/open-apis/im/v1/messages").
 			Params(map[string]interface{}{"receive_id_type": receiveIdType}).
 			Body(body)
+		if receiveIdType == "chat_id" {
+			chain.Desc("NOTE: dry-run validates request shape only. Bot/user chat membership is NOT verified; the real send may fail with \"Bot/User can NOT be out of the chat\". Use `lark-cli im +chat-messages-list --chat-id <id> --page-size 1` to check reachability first.")
+		}
+		return chain
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		chatFlag := runtime.Str("chat-id")

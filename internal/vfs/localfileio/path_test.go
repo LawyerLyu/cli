@@ -23,7 +23,7 @@ func TestSafeOutputPath_RejectsPathTraversalAndDangerousInput(t *testing.T) {
 		{"nested subdir", "a/b/c/file.txt", false},
 		{"dot in name", "my.report.v2.xlsx", false},
 		{"space in name", "my file.txt", false},
-		{"unicode normal", "报告.xlsx", false},
+		{"unicode normal", "\xe5\xa0\xb1\xe5\x91\x8a.xlsx", false}, // 报告.xlsx
 		{"dot-dot resolves to cwd", "subdir/..", false},
 
 		// ── GIVEN: path traversal via .. → THEN: rejected ──
@@ -31,9 +31,9 @@ func TestSafeOutputPath_RejectsPathTraversalAndDangerousInput(t *testing.T) {
 		{"dot-dot mid path", "subdir/../../etc/passwd", true},
 		{"triple dot-dot", "../../../etc/shadow", true},
 
-		// ── GIVEN: absolute paths → THEN: rejected ──
-		{"absolute path unix", "/etc/passwd", true},
-		{"absolute path root", "/tmp/evil", true},
+		// ── GIVEN: absolute paths → THEN: allowed (OS enforces access) ──
+		{"absolute path unix", "/etc/passwd", false},
+		{"absolute path tmp", "/tmp/output.xlsx", false},
 
 		// ── GIVEN: control characters in path → THEN: rejected ──
 		{"null byte", "file\x00.txt", true},
@@ -41,11 +41,11 @@ func TestSafeOutputPath_RejectsPathTraversalAndDangerousInput(t *testing.T) {
 		{"bell char", "file\x07.txt", true},
 
 		// ── GIVEN: dangerous Unicode in path → THEN: rejected ──
-		{"bidi RLO", "file\u202Ename.txt", true},
-		{"zero width space", "file\u200Bname.txt", true},
+		{"bidi RLO", "file‮name.txt", true},
+		{"zero width space", "file​name.txt", true},
 		{"BOM char", "file\uFEFFname.txt", true},
-		{"line separator", "file\u2028name.txt", true},
-		{"bidi LRI", "file\u2066name.txt", true},
+		{"line separator", "file name.txt", true},
+		{"bidi LRI", "file⁦name.txt", true},
 
 		// ── GIVEN: looks dangerous but is actually safe → THEN: allowed ──
 		{"literal percent 2e", "%2e%2e/etc/passwd", false},
@@ -81,6 +81,29 @@ func TestSafeOutputPath_ReturnsCanonicalAbsolutePath(t *testing.T) {
 	want := filepath.Join(dir, "output", "file.txt")
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestSafeOutputPath_ReturnsAbsolutePathUnchanged(t *testing.T) {
+	// GIVEN: an absolute path to a file in /tmp
+	f, err := os.CreateTemp("", "safe-output-*.txt")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	tmpPath := f.Name()
+	f.Close()
+	t.Cleanup(func() { os.Remove(tmpPath) })
+	tmpPath, _ = filepath.EvalSymlinks(tmpPath)
+
+	// WHEN: SafeOutputPath validates the absolute path
+	got, err := SafeOutputPath(tmpPath)
+
+	// THEN: accepted and returned as the resolved absolute path
+	if err != nil {
+		t.Fatalf("unexpected error for absolute path: %v", err)
+	}
+	if got != tmpPath {
+		t.Errorf("got %q, want %q", got, tmpPath)
 	}
 }
 
@@ -167,7 +190,7 @@ func TestSafeOutputPath_DeepNonExistentPathStaysInCWD(t *testing.T) {
 	}
 }
 
-func TestSafeUploadPath_AllowsTempFileAbsolutePath(t *testing.T) {
+func TestSafeInputPath_AllowsAbsoluteTempPath(t *testing.T) {
 	// GIVEN: a real temp file (absolute path under os.TempDir())
 	f, err := os.CreateTemp("", "upload-test-*.bin")
 	if err != nil {
@@ -176,22 +199,17 @@ func TestSafeUploadPath_AllowsTempFileAbsolutePath(t *testing.T) {
 	tmpPath := f.Name()
 	f.Close()
 	t.Cleanup(func() { os.Remove(tmpPath) })
+	tmpPath, _ = filepath.EvalSymlinks(tmpPath)
 
-	// WHEN: SafeUploadPath validates the absolute temp path
-	_, err = SafeInputPath(tmpPath)
+	// WHEN: SafeInputPath validates the absolute temp path
+	got, err := SafeInputPath(tmpPath)
 
-	// THEN: absolute paths are rejected even in temp dir
-	if err == nil {
-		t.Fatal("expected error for absolute temp path, got nil")
+	// THEN: absolute paths are accepted; OS permissions apply on actual read
+	if err != nil {
+		t.Fatalf("unexpected error for absolute temp path: %v", err)
 	}
-}
-
-func TestSafeUploadPath_RejectsNonTempAbsolutePath(t *testing.T) {
-	// GIVEN: an absolute path outside the temp directory
-	// WHEN / THEN: SafeUploadPath rejects it
-	_, err := SafeInputPath("/etc/passwd")
-	if err == nil {
-		t.Error("expected error for absolute non-temp path, got nil")
+	if got != tmpPath {
+		t.Errorf("got %q, want %q", got, tmpPath)
 	}
 }
 
@@ -218,26 +236,25 @@ func TestSafeUploadPath_AcceptsRelativePath(t *testing.T) {
 	}
 }
 
-func Test_SafeInputPath_ErrorMessageContainsCorrectFlagName(t *testing.T) {
-	// GIVEN: an absolute path
-
+func Test_SafeInputPath_ErrorMessageContainsFlagName(t *testing.T) {
+	// GIVEN: a relative path that escapes CWD via ..
 	// WHEN: SafeInputPath rejects it
-	_, err := SafeInputPath("/etc/passwd")
+	_, err := SafeInputPath("../../etc/passwd")
 
-	// THEN: error message mentions --file (not --output)
+	// THEN: error message mentions --file
 	if err == nil {
-		t.Fatal("expected error for absolute path")
+		t.Fatal("expected error for path-traversal input")
 	}
 	if !strings.Contains(err.Error(), "--file") {
 		t.Errorf("error should mention --file, got: %s", err.Error())
 	}
 
 	// WHEN: SafeOutputPath rejects it
-	_, err = SafeOutputPath("/etc/passwd")
+	_, err = SafeOutputPath("../../etc/passwd")
 
-	// THEN: error message mentions --output (not --file)
+	// THEN: error message mentions --output
 	if err == nil {
-		t.Fatal("expected error for absolute path")
+		t.Fatal("expected error for path-traversal output")
 	}
 	if !strings.Contains(err.Error(), "--output") {
 		t.Errorf("error should mention --output, got: %s", err.Error())

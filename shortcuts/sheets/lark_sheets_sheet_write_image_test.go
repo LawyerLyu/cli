@@ -255,17 +255,24 @@ func TestSheetWriteImageDryRunRejectsDirectory(t *testing.T) {
 	}
 }
 
-func TestSheetWriteImageDryRunRejectsAbsolutePath(t *testing.T) {
+func TestSheetWriteImageDryRunAcceptsAbsolutePath(t *testing.T) {
+	fh, err := os.CreateTemp("", "dry-run-img-*.png")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	fh.Close()
+	t.Cleanup(func() { os.Remove(fh.Name()) })
+
 	f, stdout, _, _ := cmdutil.TestFactory(t, sheetsTestConfig())
-	err := mountAndRunSheets(t, SheetWriteImage, []string{
+	err = mountAndRunSheets(t, SheetWriteImage, []string{
 		"+write-image",
 		"--spreadsheet-token", "shtTOKEN",
 		"--range", "sheet1!A1:A1",
-		"--image", "/etc/passwd",
+		"--image", fh.Name(),
 		"--dry-run", "--as", "user",
 	}, f, stdout)
-	if err == nil || !strings.Contains(err.Error(), "unsafe image path") {
-		t.Fatalf("expected unsafe-path error before dry-run planning, got: %v", err)
+	if err != nil {
+		t.Fatalf("absolute path should be accepted in dry-run, got: %v", err)
 	}
 }
 
@@ -564,27 +571,26 @@ func TestSheetWriteImageExecuteRejectsOversizedFile(t *testing.T) {
 	}
 }
 
-func TestSheetWriteImageExecuteRejectsAbsolutePath(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, sheetsTestConfig())
-
-	tmpDir := t.TempDir()
-	cmdutil.TestChdir(t, tmpDir)
-
-	if err := os.WriteFile("abs.png", []byte{0x89, 0x50}, 0644); err != nil {
-		t.Fatalf("WriteFile() error: %v", err)
+func TestSheetWriteImageExecuteAcceptsAbsolutePath(t *testing.T) {
+	fh, err := os.CreateTemp("", "exec-img-*.png")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
 	}
+	fh.Write([]byte{0x89, 0x50}) // minimal PNG header bytes
+	fh.Close()
+	t.Cleanup(func() { os.Remove(fh.Name()) })
 
-	err := mountAndRunSheets(t, SheetWriteImage, []string{
+	f, _, _, _ := cmdutil.TestFactory(t, sheetsTestConfig())
+	err = mountAndRunSheets(t, SheetWriteImage, []string{
 		"+write-image",
 		"--spreadsheet-token", "shtTOKEN",
 		"--range", "sheet1!A1:A1",
-		"--image", "/etc/passwd",
+		"--image", fh.Name(),
 		"--as", "user",
 	}, f, nil)
-	if err == nil {
-		t.Fatal("expected error for absolute path, got nil")
-	}
-	if !strings.Contains(err.Error(), "unsafe image path") {
-		t.Fatalf("unexpected error: %v", err)
+	// No "unsafe image path" error — path validation passes; API call fails
+	// because no HTTP stub is registered, but that's expected here.
+	if err != nil && strings.Contains(err.Error(), "unsafe image path") {
+		t.Fatalf("absolute path should not produce unsafe-image-path error, got: %v", err)
 	}
 }

@@ -634,10 +634,14 @@ func TestParseRoutes_EmptyPath(t *testing.T) {
 	}
 }
 
-func TestParseRoutes_RejectsAbsolutePath(t *testing.T) {
-	_, err := ParseRoutes([]string{`^test=dir:/tmp/evil`})
-	if err == nil {
-		t.Error("expected error for absolute path in route")
+func TestParseRoutes_AcceptsAbsolutePath(t *testing.T) {
+	absDir := t.TempDir()
+	routes, err := ParseRoutes([]string{"^test=dir:" + absDir})
+	if err != nil {
+		t.Fatalf("unexpected error for absolute path in route: %v", err)
+	}
+	if routes == nil {
+		t.Fatal("expected non-nil routes")
 	}
 }
 

@@ -400,11 +400,18 @@ func TestSaveResponse_RejectsPathTraversal(t *testing.T) {
 	}
 }
 
-func TestSaveResponse_RejectsAbsolutePath(t *testing.T) {
+func TestSaveResponse_AcceptsAbsolutePath(t *testing.T) {
+	f, err := os.CreateTemp("", "save-abs-*.bin")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	f.Close()
+	t.Cleanup(func() { os.Remove(f.Name()) })
+
 	resp := newApiResp([]byte("data"), map[string]string{"Content-Type": "application/octet-stream"})
-	_, err := SaveResponse(&localfileio.LocalFileIO{}, resp, "/tmp/evil.txt")
-	if err == nil {
-		t.Fatal("expected error for absolute path")
+	_, err = SaveResponse(&localfileio.LocalFileIO{}, resp, f.Name())
+	if err != nil {
+		t.Fatalf("SaveResponse to absolute path should succeed: %v", err)
 	}
 }
 

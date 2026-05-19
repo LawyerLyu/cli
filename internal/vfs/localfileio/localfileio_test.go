@@ -83,15 +83,21 @@ func TestLocalFileIO_Open_RejectsTraversal(t *testing.T) {
 	}
 }
 
-func TestLocalFileIO_Open_RejectsAbsolutePath(t *testing.T) {
+func TestLocalFileIO_Open_AcceptsAbsolutePath(t *testing.T) {
+	f, err := os.CreateTemp("", "open-abs-*.txt")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	f.WriteString("hello")
+	f.Close()
+	t.Cleanup(func() { os.Remove(f.Name()) })
+
 	fio := &LocalFileIO{}
-	_, err := fio.Open("/etc/passwd")
-	if err == nil {
-		t.Error("expected error for absolute path")
+	r, err := fio.Open(f.Name())
+	if err != nil {
+		t.Fatalf("Open absolute path should succeed: %v", err)
 	}
-	if err != nil && !strings.Contains(err.Error(), "relative path") {
-		t.Errorf("error should mention relative path, got: %v", err)
-	}
+	r.Close()
 }
 
 func TestLocalFileIO_Open_NonexistentFile(t *testing.T) {
@@ -204,11 +210,18 @@ func TestLocalFileIO_Save_RejectsTraversal(t *testing.T) {
 	}
 }
 
-func TestLocalFileIO_Save_RejectsAbsolutePath(t *testing.T) {
+func TestLocalFileIO_Save_AcceptsAbsolutePath(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "save-abs-*.txt")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	tmpFile.Close()
+	t.Cleanup(func() { os.Remove(tmpFile.Name()) })
+
 	fio := &LocalFileIO{}
-	_, err := fio.Save("/tmp/evil.txt", fileio.SaveOptions{}, strings.NewReader("bad"))
-	if err == nil {
-		t.Error("expected error for absolute path in Save")
+	_, err = fio.Save(tmpFile.Name(), fileio.SaveOptions{}, strings.NewReader("content"))
+	if err != nil {
+		t.Errorf("Save to absolute path should succeed: %v", err)
 	}
 }
 
@@ -242,11 +255,14 @@ func TestLocalFileIO_ResolvePath_RejectsTraversal(t *testing.T) {
 	}
 }
 
-func TestLocalFileIO_ResolvePath_RejectsAbsolute(t *testing.T) {
+func TestLocalFileIO_ResolvePath_AcceptsAbsolute(t *testing.T) {
 	fio := &LocalFileIO{}
-	_, err := fio.ResolvePath("/etc/passwd")
-	if err == nil {
-		t.Error("expected error for absolute path in ResolvePath")
+	got, err := fio.ResolvePath("/etc/passwd")
+	if err != nil {
+		t.Fatalf("ResolvePath absolute path should succeed: %v", err)
+	}
+	if !filepath.IsAbs(got) {
+		t.Errorf("expected absolute path result, got %q", got)
 	}
 }
 
@@ -259,25 +275,25 @@ func TestLocalFileIO_ErrorMessages_ContainCorrectFlagName(t *testing.T) {
 	fio := &LocalFileIO{}
 
 	// Open/Stat use SafeInputPath → errors should mention "--file"
-	_, err := fio.Open("/absolute/path")
+	_, err := fio.Open("../../traversal/path")
 	if err == nil || !strings.Contains(err.Error(), "--file") {
-		t.Errorf("Open absolute path error should mention --file, got: %v", err)
+		t.Errorf("Open traversal path error should mention --file, got: %v", err)
 	}
 
-	_, err = fio.Stat("/absolute/path")
+	_, err = fio.Stat("../../traversal/path")
 	if err == nil || !strings.Contains(err.Error(), "--file") {
-		t.Errorf("Stat absolute path error should mention --file, got: %v", err)
+		t.Errorf("Stat traversal path error should mention --file, got: %v", err)
 	}
 
 	// Save/ResolvePath use SafeOutputPath → errors should mention "--output"
-	_, err = fio.Save("/absolute/path", fileio.SaveOptions{}, strings.NewReader(""))
+	_, err = fio.Save("../../traversal/path", fileio.SaveOptions{}, strings.NewReader(""))
 	if err == nil || !strings.Contains(err.Error(), "--output") {
-		t.Errorf("Save absolute path error should mention --output, got: %v", err)
+		t.Errorf("Save traversal path error should mention --output, got: %v", err)
 	}
 
-	_, err = fio.ResolvePath("/absolute/path")
+	_, err = fio.ResolvePath("../../traversal/path")
 	if err == nil || !strings.Contains(err.Error(), "--output") {
-		t.Errorf("ResolvePath absolute path error should mention --output, got: %v", err)
+		t.Errorf("ResolvePath traversal path error should mention --output, got: %v", err)
 	}
 }
 

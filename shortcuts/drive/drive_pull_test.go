@@ -1285,25 +1285,32 @@ func TestDrivePullDownloadDoesNotEscapeViaSymlinkParentRef(t *testing.T) {
 	mustReadFile(t, filepath.Join(escapeDir, "preexisting.txt"), "DO-NOT-TOUCH")
 }
 
-// TestDrivePullRejectsAbsoluteLocalDir confirms SafeLocalFlagPath surfaces
-// the proper flag name in the error message.
-func TestDrivePullRejectsAbsoluteLocalDir(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, driveTestConfig())
+// TestDrivePullAcceptsAbsoluteLocalDir confirms absolute paths are accepted
+// for --local-dir, matching common CLI conventions (gh, gcloud, kubectl cp).
+func TestDrivePullAcceptsAbsoluteLocalDir(t *testing.T) {
+	f, _, _, reg := cmdutil.TestFactory(t, driveTestConfig())
 
 	tmpDir := t.TempDir()
 	withDriveWorkingDir(t, tmpDir)
+	absDir := t.TempDir()
+
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "folder_token=folder_root",
+		Body: map[string]interface{}{
+			"code": 0, "msg": "ok",
+			"data": map[string]interface{}{"files": []interface{}{}, "has_more": false},
+		},
+	})
 
 	err := mountAndRunDrive(t, DrivePull, []string{
 		"+pull",
-		"--local-dir", "/etc",
+		"--local-dir", absDir,
 		"--folder-token", "folder_root",
 		"--as", "bot",
 	}, f, nil)
-	if err == nil {
-		t.Fatal("expected validation error for absolute --local-dir, got nil")
-	}
-	if !strings.Contains(err.Error(), "--local-dir") {
-		t.Fatalf("error must reference --local-dir, got: %v", err)
+	if err != nil {
+		t.Fatalf("absolute --local-dir should be accepted, got: %v", err)
 	}
 }
 

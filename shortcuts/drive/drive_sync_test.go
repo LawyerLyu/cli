@@ -1097,11 +1097,12 @@ func TestDriveSyncValidateRejectsInvalidInputs(t *testing.T) {
 		}
 	})
 
-	t.Run("absolute local-dir", func(t *testing.T) {
-		runtime, _ := newDriveSyncRuntime(t, "/etc", "folder_root")
+	t.Run("absolute local-dir is accepted", func(t *testing.T) {
+		absDir := t.TempDir()
+		runtime, _ := newDriveSyncRuntime(t, absDir, "folder_root")
 		err := DriveSync.Validate(context.Background(), runtime)
-		if err == nil || !strings.Contains(err.Error(), "--local-dir") {
-			t.Fatalf("Validate() error = %v, want invalid local-dir error", err)
+		if err != nil {
+			t.Fatalf("Validate() should accept absolute --local-dir, got: %v", err)
 		}
 	})
 
@@ -1145,11 +1146,13 @@ func TestDriveSyncDryRunUsesFolderToken(t *testing.T) {
 	}
 }
 
-func TestDriveSyncExecuteRejectsUnsafeLocalDir(t *testing.T) {
-	runtime, _ := newDriveSyncRuntime(t, "/etc", "folder_root")
+func TestDriveSyncExecuteRejectsTraversalLocalDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	withDriveWorkingDir(t, tmpDir)
+	runtime, _ := newDriveSyncRuntime(t, "../../etc", "folder_root")
 	err := DriveSync.Execute(context.Background(), runtime)
 	if err == nil || !strings.Contains(err.Error(), "--local-dir") {
-		t.Fatalf("Execute() error = %v, want unsafe local-dir validation error", err)
+		t.Fatalf("Execute() error = %v, want path-traversal validation error mentioning --local-dir", err)
 	}
 }
 

@@ -63,7 +63,14 @@ func safePath(raw, flagName string) (string, error) {
 	path := filepath.Clean(raw)
 
 	if filepath.IsAbs(path) {
-		return "", fmt.Errorf("%s must be a relative path within the current directory, got %q (hint: cd to the target directory first, or use a relative path like ./filename)", flagName, raw)
+		// Absolute paths are accepted without cwd restriction, matching
+		// common CLI conventions (gh, gcloud, kubectl cp). OS permissions
+		// still enforce access when the file is actually read or written.
+		resolved, err := resolveNearestAncestor(path)
+		if err != nil {
+			return "", fmt.Errorf("cannot resolve symlinks: %w", err)
+		}
+		return resolved, nil
 	}
 
 	cwd, err := vfs.Getwd()

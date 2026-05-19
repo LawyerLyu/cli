@@ -770,25 +770,33 @@ func TestDrivePushDeleteRemoteDeletesEntireDuplicateGroupWithoutLocalCounterpart
 	reg.Verify(t)
 }
 
-// TestDrivePushRejectsAbsoluteLocalDir confirms SafeLocalFlagPath surfaces
-// the proper flag name in the error message.
-func TestDrivePushRejectsAbsoluteLocalDir(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, driveTestConfig())
+// TestDrivePushAcceptsAbsoluteLocalDir confirms absolute paths are accepted
+// for --local-dir, matching common CLI conventions (gh, gcloud, kubectl cp).
+func TestDrivePushAcceptsAbsoluteLocalDir(t *testing.T) {
+	f, _, _, reg := cmdutil.TestFactory(t, driveTestConfig())
 
 	tmpDir := t.TempDir()
 	withDriveWorkingDir(t, tmpDir)
+	absDir := t.TempDir()
+
+	// Push from an empty directory → no files to upload, returns immediately.
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "folder_token=folder_root",
+		Body: map[string]interface{}{
+			"code": 0, "msg": "ok",
+			"data": map[string]interface{}{"files": []interface{}{}, "has_more": false},
+		},
+	})
 
 	err := mountAndRunDrive(t, DrivePush, []string{
 		"+push",
-		"--local-dir", "/etc",
+		"--local-dir", absDir,
 		"--folder-token", "folder_root",
 		"--as", "bot",
 	}, f, nil)
-	if err == nil {
-		t.Fatal("expected validation error for absolute --local-dir, got nil")
-	}
-	if !strings.Contains(err.Error(), "--local-dir") {
-		t.Fatalf("error must reference --local-dir, got: %v", err)
+	if err != nil {
+		t.Fatalf("absolute --local-dir should be accepted, got: %v", err)
 	}
 }
 

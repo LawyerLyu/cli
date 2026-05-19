@@ -157,11 +157,10 @@ func TestResolveInput_AtFile_PathValidation(t *testing.T) {
 	fio := &localfileio.LocalFileIO{}
 	dir := t.TempDir()
 	TestChdir(t, dir)
-	// Absolute paths are rejected by SafeInputPath; the error must surface
-	// as an invalid-path message, not a generic read failure.
-	_, err := ResolveInput("@/etc/passwd", nil, fio)
+	// Path traversal must surface as an invalid-path message, not a generic read failure.
+	_, err := ResolveInput("@../../etc/passwd", nil, fio)
 	if err == nil || !strings.Contains(err.Error(), "invalid file path") {
-		t.Errorf("expected path-validation error, got: %v", err)
+		t.Errorf("expected path-validation error for traversal, got: %v", err)
 	}
 }
 

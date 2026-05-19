@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -309,10 +310,14 @@ func preflightEventTypes(pf *preflightCtx) error {
 	)
 }
 
-// sanitizeOutputDir rejects absolute/parent-escaping paths and ~ (SafeOutputPath treats it as a literal dir name).
+// sanitizeOutputDir rejects absolute/parent-escaping paths and ~ so that
+// event output stays within the working directory.
 func sanitizeOutputDir(dir string) (string, error) {
 	if strings.HasPrefix(dir, "~") {
 		return "", output.ErrValidation("%s; use a relative path like ./output instead", errOutputDirTilde)
+	}
+	if filepath.IsAbs(dir) {
+		return "", output.ErrValidation("%s %q: absolute paths are not permitted for --output-dir; use a relative path", errOutputDirUnsafe, dir)
 	}
 	safe, err := validate.SafeOutputPath(dir)
 	if err != nil {
