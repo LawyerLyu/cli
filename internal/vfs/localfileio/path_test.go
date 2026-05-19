@@ -41,11 +41,11 @@ func TestSafeOutputPath_RejectsPathTraversalAndDangerousInput(t *testing.T) {
 		{"bell char", "file\x07.txt", true},
 
 		// ── GIVEN: dangerous Unicode in path → THEN: rejected ──
-		{"bidi RLO", "file‮name.txt", true},
-		{"zero width space", "file​name.txt", true},
+		{"bidi RLO", "file\u202Ename.txt", true},
+		{"zero width space", "file\u200Bname.txt", true},
 		{"BOM char", "file\uFEFFname.txt", true},
-		{"line separator", "file name.txt", true},
-		{"bidi LRI", "file⁦name.txt", true},
+		{"line separator", "file\u2028name.txt", true},
+		{"bidi LRI", "file\u2066name.txt", true},
 
 		// ── GIVEN: looks dangerous but is actually safe → THEN: allowed ──
 		{"literal percent 2e", "%2e%2e/etc/passwd", false},
